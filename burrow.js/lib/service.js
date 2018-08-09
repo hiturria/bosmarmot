@@ -38,10 +38,6 @@ function wrapGRPC (name) {
       throw new Error("Can't call a requestStream method")
     }
 
-    // console.log("========================")
-    // console.log(name)
-    // console.log(params)
-
     if (resStream) {
       if (!callback) throw new Error('Callback not provided')
 
