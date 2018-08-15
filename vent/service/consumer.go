@@ -67,7 +67,8 @@ func (c *Consumer) Run() error {
 
 	c.Log.Info("msg", "Connecting to SQL database")
 
-	db, err := sqldb.NewSQLDB(c.Config.DBURL, c.Config.DBSchema, c.Log)
+	//TODO: implement also for SQLITE
+	db, err := sqldb.NewSQLDB("postgres", c.Config.DBURL, c.Config.DBSchema, c.Log)
 	if err != nil {
 		return errors.Wrap(err, "Error connecting to SQL")
 	}
