@@ -1,4 +1,5 @@
-package adapters
+package sqldb
+
 import "github.com/monax/bosmarmot/vent/types"
 
 // DBAdapter database access interface

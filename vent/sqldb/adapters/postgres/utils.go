@@ -1,11 +1,13 @@
-package adapters
+package postgres
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/lib/pq"
+	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"github.com/monax/bosmarmot/vent/types"
 )
 
@@ -32,7 +34,7 @@ type upsertCols struct {
 }
 
 // findDefaultSchema checks if the default schema exists in SQL database
-func (db *SQLDB) findDefaultSchema() (bool, error) {
+func (db *PostgresAdapter) findDefaultSchema() (bool, error) {
 	var found bool
 
 	var query = `
@@ -47,7 +49,7 @@ func (db *SQLDB) findDefaultSchema() (bool, error) {
 			)
 	;`
 
-	db.Log.Debug("msg", "FIND SCHEMA", "query", clean(query), "value", db.Schema)
+	db.Log.Debug("msg", "FIND SCHEMA", "query", adapters.Clean(query), "value", db.Schema)
 	err := db.DB.QueryRow(query, db.Schema).Scan(&found)
 	if err == nil {
 		if !found {
@@ -61,12 +63,12 @@ func (db *SQLDB) findDefaultSchema() (bool, error) {
 }
 
 // createDefaultSchema creates the default schema in SQL database
-func (db *SQLDB) createDefaultSchema() error {
+func (db *PostgresAdapter) createDefaultSchema() error {
 	db.Log.Info("msg", "Creating schema", "value", db.Schema)
 
 	query := fmt.Sprintf("CREATE SCHEMA %s;", db.Schema)
 
-	db.Log.Debug("msg", "CREATE SCHEMA", "query", clean(query), "value", db.Schema)
+	db.Log.Debug("msg", "CREATE SCHEMA", "query", adapters.Clean(query), "value", db.Schema)
 	_, err := db.DB.Exec(query)
 	if err != nil {
 		if err, ok := err.(*pq.Error); ok {
@@ -80,7 +82,7 @@ func (db *SQLDB) createDefaultSchema() error {
 }
 
 // findTable checks if a table exists in the default schema
-func (db *SQLDB) findTable(tableName string) (bool, error) {
+func (db *PostgresAdapter) findTable(tableName string) (bool, error) {
 	found := false
 
 	query := `
@@ -98,9 +100,9 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 			)
 	;`
 
-	safeTable := safe(tableName)
+	safeTable := adapters.Safe(tableName)
 
-	db.Log.Debug("msg", "FIND TABLE", "query", clean(query), "value", fmt.Sprintf("%s %s", db.Schema, safeTable))
+	db.Log.Debug("msg", "FIND TABLE", "query", adapters.Clean(query), "value", fmt.Sprintf("%s %s", db.Schema, safeTable))
 	err := db.DB.QueryRow(query, db.Schema, safeTable).Scan(&found)
 
 	if err == nil {
@@ -115,10 +117,10 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 }
 
 // createTable creates a new table in the default schema
-func (db *SQLDB) createTable(table types.SQLTable) error {
+func (db *PostgresAdapter) createTable(table types.SQLTable) error {
 	db.Log.Info("msg", "Creating Table", "value", table.Name)
 
-	safeTable := safe(table.Name)
+	safeTable := adapters.Safe(table.Name)
 
 	// sort columns and create comments
 	sortedColumns := make([]types.SQLTableColumn, len(table.Columns))
@@ -126,7 +128,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 
 	for comment, tableColumn := range table.Columns {
 		sortedColumns[tableColumn.Order-1] = tableColumn
-		comments[tableColumn.Order-1] = fmt.Sprintf("COMMENT ON COLUMN %s.%s.%s IS '%s';", db.Schema, safeTable, safe(tableColumn.Name), comment)
+		comments[tableColumn.Order-1] = fmt.Sprintf("COMMENT ON COLUMN %s.%s.%s IS '%s';", db.Schema, safeTable, adapters.Safe(tableColumn.Name), comment)
 	}
 
 	// build query
@@ -134,8 +136,8 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 	primaryKey := ""
 
 	for _, tableColumn := range sortedColumns {
-		colName := safe(tableColumn.Name)
-		colType := safe(tableColumn.Type)
+		colName := adapters.Safe(tableColumn.Name)
+		colType := adapters.Safe(tableColumn.Type)
 
 		if columnsDef != "" {
 			columnsDef += ", "
@@ -159,7 +161,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 	query += ");"
 
 	// create table
-	db.Log.Debug("msg", "CREATE TABLE", "query", clean(query))
+	db.Log.Debug("msg", "CREATE TABLE", "query", adapters.Clean(query))
 	_, err := db.DB.Exec(query)
 	if err != nil {
 		if err, ok := err.(*pq.Error); ok {
@@ -179,7 +181,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 
 	// comment on table and columns
 	for _, query := range comments {
-		db.Log.Debug("msg", "COMMENT COLUMN", "query", clean(query))
+		db.Log.Debug("msg", "COMMENT COLUMN", "query", adapters.Clean(query))
 		_, err = db.DB.Exec(query)
 		if err != nil {
 			db.Log.Debug("msg", "Error commenting column", "err", err)
@@ -191,7 +193,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 }
 
 // getTableDef returns the structure of a given SQL table
-func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
+func (db *PostgresAdapter) getTableDef(tableName string) (types.SQLTable, error) {
 	var table types.SQLTable
 
 	found, err := db.findTable(tableName)
@@ -229,7 +231,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 		AND c.table_name = $2
 	;`
 
-	db.Log.Debug("msg", "QUERY STRUCTURE", "query", clean(query), "value", fmt.Sprintf("%s %s", db.Schema, tableName))
+	db.Log.Debug("msg", "QUERY STRUCTURE", "query", adapters.Clean(query), "value", fmt.Sprintf("%s %s", db.Schema, tableName))
 	rows, err := db.DB.Query(query, db.Schema, table.Name)
 	if err != nil {
 		db.Log.Debug("msg", "Error querying table structure", "err", err)
@@ -287,7 +289,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 
 // getBlockTables return all SQL tables that had been involved
 // in a given batch transaction for a specific block id
-func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
+func (db *PostgresAdapter) getBlockTables(block string) (types.EventTables, error) {
 	tables := make(types.EventTables)
 
 	query := fmt.Sprintf(`
@@ -301,7 +303,7 @@ func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 			height = $1;
 	`, db.Schema, db.Schema)
 
-	db.Log.Debug("msg", "QUERY LOG", "query", clean(query), "value", block)
+	db.Log.Debug("msg", "QUERY LOG", "query", adapters.Clean(query), "value", block)
 	rows, err := db.DB.Query(query, block)
 	if err != nil {
 		db.Log.Debug("msg", "Error querying log", "err", err)
@@ -358,10 +360,10 @@ func getTableQuery(schema string, table types.SQLTable, height string) (string, 
 }
 
 // alterTable alters the structure of a SQL table
-func (db *SQLDB) alterTable(newTable types.SQLTable) error {
+func (db *PostgresAdapter) alterTable(newTable types.SQLTable) error {
 	db.Log.Info("msg", "Altering table", "value", newTable.Name)
 
-	safeTable := safe(newTable.Name)
+	safeTable := adapters.Safe(newTable.Name)
 
 	// current table structure in PGSQL
 	currentTable, err := db.getTableDef(safeTable)
@@ -383,10 +385,10 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 		}
 
 		if !found {
-			safeCol := safe(newColumn.Name)
-			query := fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", db.Schema, safeTable, safeCol, safe(newColumn.Type))
+			safeCol := adapters.Safe(newColumn.Name)
+			query := fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", db.Schema, safeTable, safeCol, adapters.Safe(newColumn.Type))
 
-			db.Log.Debug("msg", "ALTER TABLE", "query", clean(query))
+			db.Log.Debug("msg", "ALTER TABLE", "query", adapters.Clean(query))
 			_, err = db.DB.Exec(query)
 			if err != nil {
 				if err, ok := err.(*pq.Error); ok {
@@ -403,7 +405,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 			}
 
 			query = fmt.Sprintf("COMMENT ON COLUMN %s.%s.%s IS '%s';", db.Schema, safeTable, safeCol, comment)
-			db.Log.Debug("msg", "COMMENT COLUMN", "query", clean(query))
+			db.Log.Debug("msg", "COMMENT COLUMN", "query", adapters.Clean(query))
 			_, err = db.DB.Exec(query)
 			if err != nil {
 				db.Log.Debug("msg", "Error commenting column", "err", err)
@@ -508,8 +510,8 @@ func getUpsertQuery(schema string, table types.SQLTable) upsertQuery {
 	i := 0
 
 	for _, tableColumn := range table.Columns {
-		isNum := isNumeric(tableColumn.Type)
-		safeCol := safe(tableColumn.Name)
+		isNum := adapters.IsNumeric(tableColumn.Type)
+		safeCol := adapters.Safe(tableColumn.Name)
 		cKey = 0
 		i++
 
@@ -540,7 +542,7 @@ func getUpsertQuery(schema string, table types.SQLTable) upsertQuery {
 	}
 	uQuery.length = cols + nKeys
 
-	safeTable := safe(table.Name)
+	safeTable := adapters.Safe(table.Name)
 	query := fmt.Sprintf("INSERT INTO %s.%s (%s) VALUES (%s) ", schema, safeTable, columns, insValues)
 
 	if nKeys != 0 {
@@ -553,4 +555,40 @@ func getUpsertQuery(schema string, table types.SQLTable) upsertQuery {
 
 	uQuery.query = query
 	return uQuery
+}
+
+// getUpsertParams builds parameters in preparation for an upsert query
+func getUpsertParams(uQuery upsertQuery, row types.EventDataRow) ([]interface{}, string, error) {
+	pointers := make([]interface{}, uQuery.length)
+	containers := make([]sql.NullString, uQuery.length)
+
+	for colName, col := range uQuery.cols {
+		// interface=data
+		pointers[col.posIns] = &containers[col.posIns]
+		if col.posUpd > 0 {
+			pointers[col.posUpd] = &containers[col.posUpd]
+		}
+
+		// build parameter list
+		if value, ok := row[colName]; ok {
+			//column found (not null)
+			containers[col.posIns] = sql.NullString{String: value, Valid: true}
+
+			//if column is not PK
+			if col.posUpd > 0 {
+				containers[col.posUpd] = sql.NullString{String: value, Valid: true}
+			}
+
+		} else if col.posUpd > 0 {
+			//column not found and is not PK (null)
+			containers[col.posIns].Valid = false
+			containers[col.posUpd].Valid = false
+
+		} else {
+			//column not found is PK
+			return nil, "", errors.New("Error null primary key for column " + colName)
+		}
+	}
+
+	return pointers, fmt.Sprintf("%v", containers), nil
 }

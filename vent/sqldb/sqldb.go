@@ -4,13 +4,13 @@ import (
 	"errors"
 
 	"github.com/monax/bosmarmot/vent/logger"
-	"github.com/monax/bosmarmot/vent/sqldb/adapters"
+	"github.com/monax/bosmarmot/vent/sqldb/adapters/postgres"
 	"github.com/monax/bosmarmot/vent/types"
 )
 
 // SQLDB implements the access to a sql database
 type SQLDB struct {
-	DBAdapter adapters.DBAdapter
+	DBAdapter DBAdapter
 }
 
 // NewSQLDB connects to a SQL database and creates default schema and _bosmarmot_log if missing
@@ -19,7 +19,7 @@ func NewSQLDB(dbAdapter string, dbURL string, schema string, l *logger.Logger) (
 
 	switch dbAdapter {
 	case "postgres":
-		db.DBAdapter = adapters.NewSQLDB(dbURL, schema, l)
+		db.DBAdapter = postgres.NewSQLDB(dbURL, schema, l)
 
 	default:
 		return nil, errors.New("invalid database adapter")

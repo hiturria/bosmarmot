@@ -1,4 +1,4 @@
-package adapters
+package postgres
 
 import (
 	"database/sql"
@@ -6,11 +6,12 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/monax/bosmarmot/vent/logger"
+	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"github.com/monax/bosmarmot/vent/types"
 )
 
-//SQLDB implements DBAdapter
-type SQLDB struct {
+// PostgresAdapter implements DBAdapter
+type PostgresAdapter struct {
 	DB     *sql.DB
 	Log    *logger.Logger
 	Schema string
@@ -18,8 +19,8 @@ type SQLDB struct {
 }
 
 // NewSQLDB connects to a SQL database and creates default schema and _bosmarmot_log if missing
-func NewSQLDB(dbURL string, schema string, l *logger.Logger) DBAdapter {
-	return &SQLDB{
+func NewSQLDB(dbURL string, schema string, l *logger.Logger) *PostgresAdapter {
+	return &PostgresAdapter{
 		Log:    l,
 		Schema: schema,
 		DBURL:  dbURL,
@@ -27,7 +28,7 @@ func NewSQLDB(dbURL string, schema string, l *logger.Logger) DBAdapter {
 }
 
 // Open connects to a SQL database and creates default schema and _bosmarmot_log if missing
-func (db *SQLDB) Open() error {
+func (db *PostgresAdapter) Open() error {
 	db.Log.Info("msg", "Connecting to database", "value", db.DBURL)
 
 	dbc, err := sql.Open("postgres", db.DBURL)
@@ -63,14 +64,14 @@ func (db *SQLDB) Open() error {
 }
 
 // Close database connection
-func (db *SQLDB) Close() {
+func (db *PostgresAdapter) Close() {
 	if err := db.DB.Close(); err != nil {
 		db.Log.Error("msg", "Error closing database", "err", err)
 	}
 }
 
 // Ping database
-func (db *SQLDB) Ping() error {
+func (db *PostgresAdapter) Ping() error {
 	err := db.DB.Ping()
 	if err != nil {
 		db.Log.Debug("msg", "Error database not available", "err", err)
@@ -79,7 +80,7 @@ func (db *SQLDB) Ping() error {
 }
 
 // GetLastBlockID returns last inserted blockId from log table
-func (db *SQLDB) GetLastBlockID() (string, error) {
+func (db *PostgresAdapter) GetLastBlockID() (string, error) {
 	query := `
 		WITH ll AS (
 			SELECT
@@ -97,7 +98,7 @@ func (db *SQLDB) GetLastBlockID() (string, error) {
 	query = fmt.Sprintf(query, db.Schema, db.Schema)
 	id := ""
 
-	db.Log.Debug("msg", "MAX ID", "query", clean(query))
+	db.Log.Debug("msg", "MAX ID", "query", adapters.Clean(query))
 	err := db.DB.QueryRow(query).Scan(&id)
 
 	if err != nil {
@@ -109,7 +110,7 @@ func (db *SQLDB) GetLastBlockID() (string, error) {
 }
 
 // SynchronizeDB synchronize config structures with SQL database table structures
-func (db *SQLDB) SynchronizeDB(eventTables types.EventTables) error {
+func (db *PostgresAdapter) SynchronizeDB(eventTables types.EventTables) error {
 	db.Log.Info("msg", "Synchronizing DB")
 
 	for _, table := range eventTables {
@@ -132,7 +133,7 @@ func (db *SQLDB) SynchronizeDB(eventTables types.EventTables) error {
 }
 
 // SetBlock inserts or updates multiple rows and stores log info in SQL tables
-func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventData) error {
+func (db *PostgresAdapter) SetBlock(eventTables types.EventTables, eventData types.EventData) error {
 	var pointers []interface{}
 	var value string
 	var safeTable string
@@ -150,7 +151,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	id := 0
 	length := len(eventTables)
 	query := fmt.Sprintf("INSERT INTO %s._bosmarmot_log (registers, height) VALUES ($1, $2) RETURNING id", db.Schema)
-	db.Log.Debug("msg", "INSERT LOG", "query", clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
+	db.Log.Debug("msg", "INSERT LOG", "query", adapters.Clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
 	err = tx.QueryRow(query, length, eventData.Block).Scan(&id)
 	if err != nil {
 		db.Log.Debug("msg", "Error inserting into _bosmarmot_log", "err", err)
@@ -168,7 +169,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 loop:
 	// For Each table in the block
 	for tblMap, table := range eventTables {
-		safeTable = safe(table.Name)
+		safeTable = adapters.Safe(table.Name)
 
 		// insert in logdet table
 		dataRows := eventData.Tables[table.Name]
@@ -193,7 +194,7 @@ loop:
 			}
 
 			// upsert row data
-			db.Log.Debug("msg", "UPSERT", "query", clean(uQuery.query), "value", value)
+			db.Log.Debug("msg", "UPSERT", "query", adapters.Clean(uQuery.query), "value", value)
 			_, err = tx.Exec(uQuery.query, pointers...)
 			if err != nil {
 				db.Log.Debug("msg", "Error Upserting", "err", err)
@@ -255,7 +256,7 @@ loop:
 }
 
 // GetBlock returns a table's structure and row data
-func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
+func (db *PostgresAdapter) GetBlock(block string) (types.EventData, error) {
 	var data types.EventData
 	data.Block = block
 	data.Tables = make(map[string]types.EventDataTable)
@@ -277,7 +278,7 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 			return data, err
 		}
 
-		db.Log.Debug("msg", "Query table data", "query", clean(query))
+		db.Log.Debug("msg", "Query table data", "query", adapters.Clean(query))
 		rows, err := db.DB.Query(query)
 		if err != nil {
 			db.Log.Debug("msg", "Error querying table data", "err", err)
@@ -290,7 +291,7 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 			return data, err
 		}
 		rows.Close()
-		
+
 		// builds pointers
 		length := len(cols)
 		pointers := make([]interface{}, length)
@@ -331,7 +332,7 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 }
 
 // DestroySchema deletes the default schema
-func (db *SQLDB) DestroySchema() error {
+func (db *PostgresAdapter) DestroySchema() error {
 	db.Log.Info("msg", "Dropping schema", "value", db.Schema)
 	found, err := db.findDefaultSchema()
 
