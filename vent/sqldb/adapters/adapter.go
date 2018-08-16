@@ -1,8 +1,7 @@
 package adapters
-
 import "github.com/monax/bosmarmot/vent/types"
 
-// DBAdapter database acces interfase
+// DBAdapter database access interface
 type DBAdapter interface {
 	Open() error
 	Ping() error

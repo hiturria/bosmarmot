@@ -73,7 +73,7 @@ func (db *SQLDB) Close() {
 func (db *SQLDB) Ping() error {
 	err := db.DB.Ping()
 	if err != nil {
-		db.Log.Debug("msg", "Error database not disponible", "err", err)
+		db.Log.Debug("msg", "Error database not available", "err", err)
 	}
 	return err
 }
@@ -180,7 +180,7 @@ loop:
 			return err
 		}
 
-		// get table upsert quey
+		// get table upsert query
 		uQuery := getUpsertQuery(db.Schema, table)
 
 		// for Each Row
@@ -283,14 +283,14 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 			db.Log.Debug("msg", "Error querying table data", "err", err)
 			return data, err
 		}
-		defer rows.Close()
 
 		cols, err := rows.Columns()
 		if err != nil {
 			db.Log.Debug("msg", "Error getting row columns", "err", err)
 			return data, err
 		}
-
+		rows.Close()
+		
 		// builds pointers
 		length := len(cols)
 		pointers := make([]interface{}, length)
