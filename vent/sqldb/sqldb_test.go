@@ -51,6 +51,36 @@ func TestSetBlock(t *testing.T) {
 		fmt.Println(eventData)
 		require.NoError(t, erre)
 	})
+
+	t.Run("successfully creates a table", func(t *testing.T) {
+
+
+
+		db, closeDB := test.NewTestDB(t)
+		defer closeDB()
+
+		errp := db.Ping()
+		require.NoError(t, errp)
+
+		//table 1
+		cols1 := make(map[string]types.SQLTableColumn)
+		cols1["ID"] = types.SQLTableColumn{Name: "test_id", Type: types.SQLColumnTypeSerial, Primary: true, Order: 1}
+		cols1["Column1"] = types.SQLTableColumn{Name: "col1", Type: types.SQLColumnTypeBool, Primary: false, Order: 2}
+		cols1["Column2"] = types.SQLTableColumn{Name: "col2", Type: types.SQLColumnTypeByteA, Primary: false, Order: 3}
+		cols1["Column3"] = types.SQLTableColumn{Name: "col3", Type: types.SQLColumnTypeInt, Primary: false, Order: 4}
+		cols1["Column4"] = types.SQLTableColumn{Name: "col4", Type: types.SQLColumnTypeText, Primary: false, Order: 5}
+		cols1["Column5"] = types.SQLTableColumn{Name: "col5", Type: types.SQLColumnTypeTimeStamp, Primary: false, Order: 6}
+		cols1["Column6"] = types.SQLTableColumn{Name: "col6", Type: types.SQLColumnTypeVarchar100, Primary: false, Order: 7}
+		table1 := types.SQLTable{Name: "FullDataTable", Columns: cols1}
+		tables := make(map[string]types.SQLTable)
+		tables["FullDataTable"] =table1
+
+		err := db.SynchronizeDB(tables)
+		require.NoError(t, err)
+
+	})
+
+
 }
 
 func getBlock() (types.EventTables, types.EventData) {

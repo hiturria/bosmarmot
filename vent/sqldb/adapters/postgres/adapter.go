@@ -2,16 +2,29 @@ package postgres
 
 import (
 	"database/sql"
-	"fmt"
-
-	"github.com/lib/pq"
 	"github.com/monax/bosmarmot/vent/logger"
-	"github.com/monax/bosmarmot/vent/sqldb/adapters"
-	"github.com/monax/bosmarmot/vent/types"
+	"fmt"
+	"github.com/lib/pq"
 )
 
-// PostgresAdapter implements DBAdapter
-type PostgresAdapter struct {
+// PostgreSQL specific error codes
+const (
+	errDupSchema = "42P06"
+)
+
+var sqlDataTypes = map[string]string{
+	"INTEGER":           "INTEGER",
+	"TEXT":              "TEXT",
+	"VARCHAR(100)":      "VARCHAR(100)",
+	"BOOLEAN":           "BOOLEAN",
+	"BYTEA":             "BYTEA",
+	"TIMESTAMP":         "TIMESTAMP",
+	"TIMESTAMP_DEFAULT": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+	"SERIAL":            "SERIAL",
+}
+
+// Adapter implements DBAdapter fro Postgres
+type Adapter struct {
 	DB     *sql.DB
 	Log    *logger.Logger
 	Schema string
@@ -19,8 +32,8 @@ type PostgresAdapter struct {
 }
 
 // NewSQLDB connects to a SQL database and creates default schema and _bosmarmot_log if missing
-func NewSQLDB(dbURL string, schema string, l *logger.Logger) *PostgresAdapter {
-	return &PostgresAdapter{
+func NewSQLDB(dbURL string, schema string, l *logger.Logger) *Adapter {
+	return &Adapter{
 		Log:    l,
 		Schema: schema,
 		DBURL:  dbURL,
@@ -28,59 +41,29 @@ func NewSQLDB(dbURL string, schema string, l *logger.Logger) *PostgresAdapter {
 }
 
 // Open connects to a SQL database and creates default schema and _bosmarmot_log if missing
-func (db *PostgresAdapter) Open() error {
-	db.Log.Info("msg", "Connecting to database", "value", db.DBURL)
+func (adapter *Adapter) Open() (*sql.DB, error) {
 
-	dbc, err := sql.Open("postgres", db.DBURL)
+	db, err := sql.Open("postgres", adapter.DBURL)
 	if err != nil {
-		db.Log.Error("msg", "Error opening database connection", "err", err)
-		return err
-	}
-	db.DB = dbc
-
-	if err = db.Ping(); err != nil {
-		db.Log.Error("msg", "Error database not available", "err", err)
-		return err
+		adapter.Log.Error("msg", "Error opening database connection", "err", err)
+		return nil, err
 	}
 
-	var found bool
-	found, err = db.findDefaultSchema()
-	if err != nil {
-		return err
-	}
-
-	if !found {
-		if err = db.createDefaultSchema(); err != nil {
-			return err
-		}
-	}
-
-	// create _bosmarmot_log
-	if err = db.SynchronizeDB(getLogTableDef()); err != nil {
-		return err
-	}
-
-	return nil
+	adapter.DB = db
+	return db, err
 }
 
-// Close database connection
-func (db *PostgresAdapter) Close() {
-	if err := db.DB.Close(); err != nil {
-		db.Log.Error("msg", "Error closing database", "err", err)
+func (adapter *Adapter) SQLDataType(sqlGenericType string) string {
+	if sqlDataType, ok := sqlDataTypes[sqlGenericType]; ok {
+		return sqlDataType
 	}
+	return sqlDataTypes["VARCHAR(100)"]
 }
 
-// Ping database
-func (db *PostgresAdapter) Ping() error {
-	err := db.DB.Ping()
-	if err != nil {
-		db.Log.Debug("msg", "Error database not available", "err", err)
-	}
-	return err
-}
+//--------------------------------------------------------------------------------------------------------------------
 
-// GetLastBlockID returns last inserted blockId from log table
-func (db *PostgresAdapter) GetLastBlockID() (string, error) {
+// GetQueryLastBlockID returns query for last inserted blockId in log table
+func (adapter *Adapter) GetQueryLastBlockID() string {
 	query := `
 		WITH ll AS (
 			SELECT
@@ -95,262 +78,98 @@ func (db *PostgresAdapter) GetLastBlockID() (string, error) {
 			LEFT OUTER JOIN %s._bosmarmot_log log ON ll.id = log.id
 	;`
 
-	query = fmt.Sprintf(query, db.Schema, db.Schema)
-	id := ""
-
-	db.Log.Debug("msg", "MAX ID", "query", adapters.Clean(query))
-	err := db.DB.QueryRow(query).Scan(&id)
-
-	if err != nil {
-		db.Log.Debug("msg", "Error selecting last block id", "err", err)
-		return "", err
-	}
-
-	return id, nil
+	return fmt.Sprintf(query, adapter.Schema, adapter.Schema)
 }
 
-// SynchronizeDB synchronize config structures with SQL database table structures
-func (db *PostgresAdapter) SynchronizeDB(eventTables types.EventTables) error {
-	db.Log.Info("msg", "Synchronizing DB")
+// GetQueryFindSchema returns query that checks if the default schema exists (true/false)
+func (adapter *Adapter) GetQueryFindSchema() string {
+	query := `	SELECT
+					EXISTS (
+						SELECT
+							1
+						FROM
+							pg_catalog.pg_namespace n
+						WHERE
+							n.nspname = '%s'
+					);`
 
-	for _, table := range eventTables {
-		found, err := db.findTable(table.Name)
-		if err != nil {
-			return err
-		}
-
-		if found {
-			err = db.alterTable(table)
-		} else {
-			err = db.createTable(table)
-		}
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return fmt.Sprintf(query, adapter.Schema)
 }
 
-// SetBlock inserts or updates multiple rows and stores log info in SQL tables
-func (db *PostgresAdapter) SetBlock(eventTables types.EventTables, eventData types.EventData) error {
-	var pointers []interface{}
-	var value string
-	var safeTable string
-	var logStmt *sql.Stmt
-
-	// begin tx
-	tx, err := db.DB.Begin()
-	if err != nil {
-		db.Log.Debug("msg", "Error beginning transaction", "err", err)
-		return err
-	}
-	defer tx.Rollback()
-
-	// insert into log tables
-	id := 0
-	length := len(eventTables)
-	query := fmt.Sprintf("INSERT INTO %s._bosmarmot_log (registers, height) VALUES ($1, $2) RETURNING id", db.Schema)
-	db.Log.Debug("msg", "INSERT LOG", "query", adapters.Clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
-	err = tx.QueryRow(query, length, eventData.Block).Scan(&id)
-	if err != nil {
-		db.Log.Debug("msg", "Error inserting into _bosmarmot_log", "err", err)
-		return err
-	}
-
-	// prepare log detail statement
-	logQuery := fmt.Sprintf("INSERT INTO %s._bosmarmot_logdet (id,tblname,tblmap,registers) VALUES ($1,$2,$3,$4)", db.Schema)
-	logStmt, err = tx.Prepare(logQuery)
-	if err != nil {
-		db.Log.Debug("msg", "Error preparing log stmt", "err", err)
-		return err
-	}
-
-loop:
-	// For Each table in the block
-	for tblMap, table := range eventTables {
-		safeTable = adapters.Safe(table.Name)
-
-		// insert in logdet table
-		dataRows := eventData.Tables[table.Name]
-		length = len(dataRows)
-		db.Log.Debug("msg", "INSERT LOGDET", "query", logQuery, "value", fmt.Sprintf("%d %s %s %d", id, safeTable, tblMap, length))
-		_, err = logStmt.Exec(id, safeTable, tblMap, length)
-		if err != nil {
-			db.Log.Debug("msg", "Error inserting into logdet", "err", err)
-			return err
-		}
-
-		// get table upsert query
-		uQuery := getUpsertQuery(db.Schema, table)
-
-		// for Each Row
-		for _, row := range dataRows {
-			// get parameter interface
-			pointers, value, err = getUpsertParams(uQuery, row)
-			if err != nil {
-				db.Log.Debug("msg", "Error building parameters", "err", err, "value", fmt.Sprintf("%v", row))
-				return err
-			}
-
-			// upsert row data
-			db.Log.Debug("msg", "UPSERT", "query", adapters.Clean(uQuery.query), "value", value)
-			_, err = tx.Exec(uQuery.query, pointers...)
-			if err != nil {
-				db.Log.Debug("msg", "Error Upserting", "err", err)
-				// exits from all loops -> continue in close log stmt
-				break loop
-			}
-		}
-	}
-
-	// close log statement
-	if err == nil {
-		err = logStmt.Close()
-		if err != nil {
-			db.Log.Debug("msg", "Error closing log stmt", "err", err)
-		}
-	}
-
-	//------------------------error handling----------------------
-	if err != nil {
-		// rollback error
-		errRb := tx.Rollback()
-		if errRb != nil {
-			db.Log.Debug("msg", "Error on rollback", "err", errRb)
-			return errRb
-		}
-
-		if pqErr, ok := err.(*pq.Error); ok {
-			// table does not exists
-			if pqErr.Code == errUndefinedTable {
-				db.Log.Warn("msg", "Table not found", "value", safeTable)
-				if err = db.SynchronizeDB(eventTables); err != nil {
-					return err
-				}
-				return db.SetBlock(eventTables, eventData)
-			}
-
-			// columns do not match
-			if pqErr.Code == errUndefinedColumn {
-				db.Log.Warn("msg", "Column not found", "value", safeTable)
-				if err = db.SynchronizeDB(eventTables); err != nil {
-					return err
-				}
-				return db.SetBlock(eventTables, eventData)
-			}
-			db.Log.Debug("msg", "Error upserting row", "err", pqErr)
-			return pqErr
-		}
-		return err
-	}
-
-	db.Log.Debug("msg", "COMMIT")
-	err = tx.Commit()
-	if err != nil {
-		db.Log.Debug("msg", "Error on commit", "err", err)
-		return err
-	}
-
-	return nil
+// GetQueryCreateSchema returns query that creates schema
+func (adapter *Adapter) GetQueryCreateSchema() string {
+	return fmt.Sprintf("CREATE SCHEMA %s;", adapter.Schema)
 }
 
-// GetBlock returns a table's structure and row data
-func (db *PostgresAdapter) GetBlock(block string) (types.EventData, error) {
-	var data types.EventData
-	data.Block = block
-	data.Tables = make(map[string]types.EventDataTable)
-
-	// get all table structures involved in the block
-	tables, err := db.getBlockTables(block)
-	if err != nil {
-		return data, err
-	}
-
-	query := ""
-
-	// for each table
-	for _, table := range tables {
-		// get query for table
-		query, err = getTableQuery(db.Schema, table, block)
-		if err != nil {
-			db.Log.Debug("msg", "Error building table query", "err", err)
-			return data, err
-		}
-
-		db.Log.Debug("msg", "Query table data", "query", adapters.Clean(query))
-		rows, err := db.DB.Query(query)
-		if err != nil {
-			db.Log.Debug("msg", "Error querying table data", "err", err)
-			return data, err
-		}
-
-		cols, err := rows.Columns()
-		if err != nil {
-			db.Log.Debug("msg", "Error getting row columns", "err", err)
-			return data, err
-		}
-		rows.Close()
-
-		// builds pointers
-		length := len(cols)
-		pointers := make([]interface{}, length)
-		containers := make([]sql.NullString, length)
-
-		for i := range pointers {
-			pointers[i] = &containers[i]
-		}
-
-		// for each row in table
-		var dataRows []types.EventDataRow
-
-		for rows.Next() {
-			row := make(map[string]string)
-
-			err = rows.Scan(pointers...)
-			if err != nil {
-				db.Log.Debug("msg", "Error scanning data", "err", err)
-				return data, err
-			}
-			db.Log.Debug("msg", "Query resultset", "value", fmt.Sprintf("%+v", containers))
-
-			//for each column in row
-			for i, col := range cols {
-				//if not null add  value
-				if containers[i].Valid {
-					row[col] = containers[i].String
-				}
-			}
-
-			dataRows = append(dataRows, row)
-		}
-
-		data.Tables[table.Name] = dataRows
-	}
-
-	return data, nil
+// GetQueryDropSchema returns query that creates schema
+func (adapter *Adapter) GetQueryDropSchema() string {
+	return fmt.Sprintf("DROP SCHEMA %s CASCADE;", adapter.Schema)
 }
 
-// DestroySchema deletes the default schema
-func (db *PostgresAdapter) DestroySchema() error {
-	db.Log.Info("msg", "Dropping schema", "value", db.Schema)
-	found, err := db.findDefaultSchema()
+// GetQueryFindTable returns query that checks if a table exists (true/false)
+func (adapter *Adapter) GetQueryFindTable(table string) string {
+	query := `
+		SELECT
+			EXISTS (
+				SELECT
+					1
+				FROM
+					pg_catalog.pg_class c
+					JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+				WHERE
+					n.nspname = '%s'
+					AND c.relname = '%s'
+					AND c.relkind = 'r'
+			)
+	;`
 
-	if err != nil {
-		return err
-	}
+	return fmt.Sprintf(query, adapter.Schema, table)
+}
 
-	if found {
-		query := fmt.Sprintf("DROP SCHEMA %s CASCADE;", db.Schema)
+// GetQueryTableDefinition returns query with table structure
+func (adapter *Adapter) GetQueryTableDefinition(table string) string {
+	query := `
+	WITH dsc AS (
+		SELECT pgd.objsubid,st.schemaname,st.relname,pgd.description
+		FROM pg_catalog.pg_statio_all_tables AS st
+		INNER JOIN pg_catalog.pg_description pgd ON (pgd.objoid=st.relid)
+	)
+	SELECT
+		c.column_name ColumnName,
+		(CASE 
+		WHEN c.data_type='integer' AND is_nullable='NO' THEN 'SERIAL'
+		WHEN c.data_type='integer' THEN 'INTEGER'
+		WHEN c.data_type='boolean' THEN 'BOOLEAN'
+		WHEN c.data_type='bytea' THEN 'BYTEA'
+		WHEN c.data_type='text' THEN 'TEXT'
+		WHEN c.udt_name='timestamp' THEN 'TIMESTAMP'
+		WHEN c.udt_name='varchar' THEN CONCAT('VARCHAR(',COALESCE(c.character_maximum_length, 0),')')
+		ELSE CONCAT(c.data_type ,' - ' ,c.udt_name,'(',COALESCE(c.character_maximum_length, 0),')')
+		END) ColumnSQLType,
+		(CASE WHEN is_nullable='NO' THEN true ELSE false END) ColumnIsPK,
+		(CASE
+		WHEN TRIM(COALESCE(dsc.description, '')) <>'' THEN  TRIM(COALESCE(dsc.description, '')) 
+		ELSE c.column_name 
+		END) ColumnDescription
+	FROM
+		information_schema.columns AS c
+	LEFT OUTER JOIN
+		dsc ON (c.ordinal_position = dsc.objsubid AND c.table_schema = dsc.schemaname AND c.table_name = dsc.relname)
+	WHERE
+		c.table_schema = '%s'
+		AND c.table_name = '%s'
+	;`
 
-		db.Log.Info("msg", "Drop schema", "query", query)
-		_, err := db.DB.Exec(query)
-		if err != nil {
-			db.Log.Debug("msg", "Error dropping schema", "err", err)
+	return fmt.Sprintf(query, adapter.Schema, table)
+}
+
+//---------------------------------------------------------------------------------------------------------------------
+
+func (adapter *Adapter) ErrorIsDupSchema(err error) bool {
+	if err, ok := err.(*pq.Error); ok {
+		if err.Code == errDupSchema {
+			return true
 		}
-
-		return err
 	}
-
-	return nil
+	return false
 }

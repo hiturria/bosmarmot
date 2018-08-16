@@ -1,21 +1,18 @@
-package postgres
+package sqldb
 
 import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
-
 	"github.com/lib/pq"
 	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"github.com/monax/bosmarmot/vent/types"
 )
 
-// some PostgreSQL specific error codes
+// PostgreSQL specific error codes
 const (
 	errDupTable        = "42P07"
 	errDupColumn       = "42701"
-	errDupSchema       = "42P06"
 	errUndefinedTable  = "42P01"
 	errUndefinedColumn = "42703"
 	errInvalidType     = "42704"
@@ -34,26 +31,16 @@ type upsertCols struct {
 }
 
 // findDefaultSchema checks if the default schema exists in SQL database
-func (db *PostgresAdapter) findDefaultSchema() (bool, error) {
+func (db *SQLDB) findDefaultSchema() (bool, error) {
 	var found bool
 
-	var query = `
-		SELECT
-			EXISTS (
-				SELECT
-					1
-				FROM
-					pg_catalog.pg_namespace n
-				WHERE
-					n.nspname = $1
-			)
-	;`
+	query := db.DBAdapter.GetQueryFindSchema()
 
-	db.Log.Debug("msg", "FIND SCHEMA", "query", adapters.Clean(query), "value", db.Schema)
-	err := db.DB.QueryRow(query, db.Schema).Scan(&found)
+	db.Log.Debug("msg", "FIND SCHEMA", "query", adapters.Clean(query))
+	err := db.DB.QueryRow(query).Scan(&found)
 	if err == nil {
 		if !found {
-			db.Log.Warn("msg", "Schema not found", "value", db.Schema)
+			db.Log.Warn("msg", "Schema not found")
 		}
 	} else {
 		db.Log.Debug("msg", "Error searching schema", "err", err)
@@ -63,51 +50,34 @@ func (db *PostgresAdapter) findDefaultSchema() (bool, error) {
 }
 
 // createDefaultSchema creates the default schema in SQL database
-func (db *PostgresAdapter) createDefaultSchema() error {
-	db.Log.Info("msg", "Creating schema", "value", db.Schema)
+func (db *SQLDB) createDefaultSchema() error {
+	db.Log.Info("msg", "Creating schema")
 
-	query := fmt.Sprintf("CREATE SCHEMA %s;", db.Schema)
+	query := db.DBAdapter.GetQueryCreateSchema()
 
-	db.Log.Debug("msg", "CREATE SCHEMA", "query", adapters.Clean(query), "value", db.Schema)
+	db.Log.Debug("msg", "CREATE SCHEMA", "query", adapters.Clean(query))
 	_, err := db.DB.Exec(query)
 	if err != nil {
-		if err, ok := err.(*pq.Error); ok {
-			if err.Code == errDupSchema {
-				db.Log.Warn("msg", "Duplicate schema", "value", db.Schema)
-				return nil
-			}
+		if db.DBAdapter.ErrorIsDupSchema(err) {
+			db.Log.Warn("msg", "Duplicate schema", "value", db.Schema)
+			return nil
 		}
 	}
 	return err
 }
 
 // findTable checks if a table exists in the default schema
-func (db *PostgresAdapter) findTable(tableName string) (bool, error) {
+func (db *SQLDB) findTable(tableName string) (bool, error) {
 	found := false
-
-	query := `
-		SELECT
-			EXISTS (
-				SELECT
-					1
-				FROM
-					pg_catalog.pg_class c
-					JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
-				WHERE
-					n.nspname = $1
-					AND c.relname = $2
-					AND c.relkind = 'r'
-			)
-	;`
-
 	safeTable := adapters.Safe(tableName)
+	query := db.DBAdapter.GetQueryFindTable(safeTable)
 
-	db.Log.Debug("msg", "FIND TABLE", "query", adapters.Clean(query), "value", fmt.Sprintf("%s %s", db.Schema, safeTable))
-	err := db.DB.QueryRow(query, db.Schema, safeTable).Scan(&found)
+	db.Log.Debug("msg", "FIND TABLE", "query", adapters.Clean(query), "value", safeTable)
+	err := db.DB.QueryRow(query).Scan(&found)
 
 	if err == nil {
 		if !found {
-			db.Log.Warn("msg", "Table not found", "value", fmt.Sprintf("%s %s", db.Schema, safeTable))
+			db.Log.Warn("msg", "Table not found", "value", safeTable)
 		}
 	} else {
 		db.Log.Debug("msg", "Error finding table", "err", err)
@@ -116,8 +86,156 @@ func (db *PostgresAdapter) findTable(tableName string) (bool, error) {
 	return found, err
 }
 
+// getLogTableDef returns log structures
+func  (db *SQLDB) getLogTableDef() types.EventTables {
+	tables := make(types.EventTables)
+	logCol := make(map[string]types.SQLTableColumn)
+
+	logCol["id"] = types.SQLTableColumn{
+		Name:    "id",
+		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeSerial),
+		Primary: true,
+		Order:   1,
+	}
+
+	logCol["timestamp"] = types.SQLTableColumn{
+		Name:    "timestamp",
+		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeDefaultTimeStamp),
+		Primary: false,
+		Order:   2,
+	}
+
+	logCol["registers"] = types.SQLTableColumn{
+		Name:    "registers",
+		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeInt),
+		Primary: false,
+		Order:   3,
+	}
+
+	logCol["height"] = types.SQLTableColumn{
+		Name:    "height",
+		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar100),
+		Primary: false,
+		Order:   4,
+	}
+
+	detCol := make(map[string]types.SQLTableColumn)
+
+	detCol["id"] = types.SQLTableColumn{
+		Name:    "id",
+		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeInt),
+		Primary: true,
+		Order:   1,
+	}
+
+	detCol["tableName"] = types.SQLTableColumn{
+		Name:    "tblname",
+		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar100),
+		Primary: true,
+		Order:   2,
+	}
+
+	detCol["tableMap"] = types.SQLTableColumn{
+		Name:    "tblmap",
+		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar100),
+		Primary: true,
+		Order:   3,
+	}
+
+	detCol["registers"] = types.SQLTableColumn{
+		Name:    "registers",
+		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeInt),
+		Primary: false,
+		Order:   4,
+	}
+
+	log := types.SQLTable{
+		Name:    "_bosmarmot_log",
+		Columns: logCol,
+	}
+
+	det := types.SQLTable{
+		Name:    "_bosmarmot_logdet",
+		Columns: detCol,
+	}
+
+	tables["log"] = log
+	tables["detail"] = det
+
+	return tables
+}
+
+
+//-------------------------------------------------------------------------------------------------------------------
+// getTableDef returns the structure of a given SQL table
+func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
+	var table types.SQLTable
+
+	safeTable:=adapters.Safe(tableName)
+
+	found, err := db.findTable(safeTable)
+	if err != nil {
+		return table, err
+	}
+
+	if !found {
+		db.Log.Debug("msg", "Error table not found", "value", safeTable)
+		return table, errors.New("Error table not found " + safeTable)
+	}
+
+	table.Name = safeTable
+	query := db.DBAdapter.GetQueryTableDefinition(safeTable)
+
+	db.Log.Debug("msg", "QUERY STRUCTURE", "query", adapters.Clean(query), "value", safeTable)
+	rows, err := db.DB.Query(query)
+	if err != nil {
+		db.Log.Debug("msg", "Error querying table structure", "err", err)
+		return table, err
+	}
+	defer rows.Close()
+
+	columns := make(map[string]types.SQLTableColumn)
+
+	i := 0
+	for rows.Next() {
+		i++
+		var columnName string
+		var columnSQLType string
+		var columnIsPK bool
+		var columnDescription string
+
+		var column types.SQLTableColumn
+
+		if err := rows.Scan(&columnName, &columnSQLType, &columnIsPK, &columnDescription); err != nil {
+			db.Log.Debug("msg", "Error scanning table structure", "err", err)
+			return table, err
+		}
+
+		if err := rows.Err(); err != nil {
+			db.Log.Debug("msg", "Error scanning table structure", "err", err)
+			return table, err
+		}
+
+		column.Order = i
+		column.Name = columnName
+		column.Primary = columnIsPK
+		column.Type = columnSQLType
+
+		//TODO: check for valid type
+		//if db.DBAdapter.SQLDataType(columnSQLType){
+		//	//
+		//}
+
+
+		columns[columnDescription] = column
+	}
+
+	table.Columns = columns
+	return table, nil
+}
+
 // createTable creates a new table in the default schema
-func (db *PostgresAdapter) createTable(table types.SQLTable) error {
+func (db *SQLDB) createTable(table types.SQLTable) error {
 	db.Log.Info("msg", "Creating Table", "value", table.Name)
 
 	safeTable := adapters.Safe(table.Name)
@@ -192,104 +310,9 @@ func (db *PostgresAdapter) createTable(table types.SQLTable) error {
 	return nil
 }
 
-// getTableDef returns the structure of a given SQL table
-func (db *PostgresAdapter) getTableDef(tableName string) (types.SQLTable, error) {
-	var table types.SQLTable
-
-	found, err := db.findTable(tableName)
-	if err != nil {
-		return table, err
-	}
-
-	if !found {
-		db.Log.Debug("msg", "Error table not found", "value", tableName)
-		return table, errors.New("Error table not found " + tableName)
-	}
-
-	table.Name = tableName
-	//  "col_1";  "integer";          "int4";      0;  "NO";   "dsc1"
-	//  "col_2";  "character varying";"varchar";  10;  "YES";  ""
-	query := `
-  WITH dsc AS (
-		SELECT pgd.objsubid,st.schemaname,st.relname,pgd.description
-		FROM pg_catalog.pg_statio_all_tables AS st
-		INNER JOIN pg_catalog.pg_description pgd ON (pgd.objoid=st.relid)
-	)
-	SELECT
-		c.column_name col,
-		c.data_type dtype,
-		c.udt_name dtype2,
-		COALESCE(c.character_maximum_length, 0) length,
-		is_nullable nullable,
-		COALESCE(dsc.description, '')  description
-	FROM
-		information_schema.columns AS c
-	LEFT OUTER JOIN
-		dsc ON (c.ordinal_position = dsc.objsubid AND c.table_schema = dsc.schemaname AND c.table_name = dsc.relname)
-	WHERE
-		c.table_schema = $1
-		AND c.table_name = $2
-	;`
-
-	db.Log.Debug("msg", "QUERY STRUCTURE", "query", adapters.Clean(query), "value", fmt.Sprintf("%s %s", db.Schema, tableName))
-	rows, err := db.DB.Query(query, db.Schema, table.Name)
-	if err != nil {
-		db.Log.Debug("msg", "Error querying table structure", "err", err)
-		return table, err
-	}
-	defer rows.Close()
-
-	columns := make(map[string]types.SQLTableColumn)
-
-	i := 0
-	for rows.Next() {
-		i++
-		var col string
-		var dtype string
-		var dtype2 string
-		var length int
-		var nullable string
-		var dsc string
-		var column types.SQLTableColumn
-
-		if err := rows.Scan(&col, &dtype, &dtype2, &length, &nullable, &dsc); err != nil {
-			db.Log.Debug("msg", "Error scanning table structure", "err", err)
-			return table, err
-		}
-
-		if err := rows.Err(); err != nil {
-			db.Log.Debug("msg", "Error scanning table structure", "err", err)
-			return table, err
-		}
-
-		column.Order = i
-		column.Name = col
-
-		if length == 0 {
-			column.Type = dtype
-		} else {
-			column.Type = dtype2 + "(" + strconv.Itoa(length) + ")"
-		}
-
-		if nullable == "NO" {
-			column.Primary = true
-		} else {
-			column.Primary = false
-		}
-
-		if dsc == "" {
-			dsc = col
-		}
-		columns[dsc] = column
-	}
-
-	table.Columns = columns
-	return table, nil
-}
-
 // getBlockTables return all SQL tables that had been involved
 // in a given batch transaction for a specific block id
-func (db *PostgresAdapter) getBlockTables(block string) (types.EventTables, error) {
+func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 	tables := make(types.EventTables)
 
 	query := fmt.Sprintf(`
@@ -352,7 +375,7 @@ func getTableQuery(schema string, table types.SQLTable, height string) (string, 
 	}
 
 	if fields == "" {
-		return "", errors.New("Error table does not contain any fields")
+		return "", errors.New("error table does not contain any fields")
 	}
 
 	query := "SELECT " + fields + " FROM " + schema + "." + table.Name + " WHERE height='" + height + "';"
@@ -360,7 +383,7 @@ func getTableQuery(schema string, table types.SQLTable, height string) (string, 
 }
 
 // alterTable alters the structure of a SQL table
-func (db *PostgresAdapter) alterTable(newTable types.SQLTable) error {
+func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 	db.Log.Info("msg", "Altering table", "value", newTable.Name)
 
 	safeTable := adapters.Safe(newTable.Name)
@@ -414,85 +437,6 @@ func (db *PostgresAdapter) alterTable(newTable types.SQLTable) error {
 		}
 	}
 	return nil
-}
-
-// getLogTableDef returns log structures
-func getLogTableDef() types.EventTables {
-	tables := make(types.EventTables)
-	logCol := make(map[string]types.SQLTableColumn)
-
-	logCol["id"] = types.SQLTableColumn{
-		Name:    "id",
-		Type:    types.SQLColumnTypeSerial,
-		Primary: true,
-		Order:   1,
-	}
-
-	logCol["timestamp"] = types.SQLTableColumn{
-		Name:    "timestamp",
-		Type:    types.SQLColumnTypeTimeStamp + " DEFAULT CURRENT_TIMESTAMP",
-		Primary: false,
-		Order:   2,
-	}
-
-	logCol["registers"] = types.SQLTableColumn{
-		Name:    "registers",
-		Type:    types.SQLColumnTypeInt,
-		Primary: false,
-		Order:   3,
-	}
-
-	logCol["height"] = types.SQLTableColumn{
-		Name:    "height",
-		Type:    types.SQLColumnTypeVarchar100,
-		Primary: false,
-		Order:   4,
-	}
-
-	detCol := make(map[string]types.SQLTableColumn)
-
-	detCol["id"] = types.SQLTableColumn{
-		Name:    "id",
-		Type:    types.SQLColumnTypeInt,
-		Primary: true,
-		Order:   1,
-	}
-
-	detCol["tableName"] = types.SQLTableColumn{
-		Name:    "tblname",
-		Type:    types.SQLColumnTypeVarchar100,
-		Primary: true,
-		Order:   2,
-	}
-
-	detCol["tableMap"] = types.SQLTableColumn{
-		Name:    "tblmap",
-		Type:    types.SQLColumnTypeVarchar100,
-		Primary: true,
-		Order:   3,
-	}
-
-	detCol["registers"] = types.SQLTableColumn{
-		Name:    "registers",
-		Type:    types.SQLColumnTypeInt,
-		Primary: false,
-		Order:   4,
-	}
-
-	log := types.SQLTable{
-		Name:    "_bosmarmot_log",
-		Columns: logCol,
-	}
-
-	det := types.SQLTable{
-		Name:    "_bosmarmot_logdet",
-		Columns: detCol,
-	}
-
-	tables["log"] = log
-	tables["detail"] = det
-
-	return tables
 }
 
 // getUpsertQuery builds a query for upsert

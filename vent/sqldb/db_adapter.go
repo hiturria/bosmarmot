@@ -1,15 +1,20 @@
 package sqldb
 
-import "github.com/monax/bosmarmot/vent/types"
+import "database/sql"
 
 // DBAdapter database access interface
 type DBAdapter interface {
-	Open() error
-	Ping() error
-	SynchronizeDB(eventTables types.EventTables) error
-	SetBlock(eventTables types.EventTables, eventData types.EventData) error
-	GetLastBlockID() (string, error)
-	GetBlock(block string) (types.EventData, error)
-	DestroySchema() error
-	Close()
+	Open() (*sql.DB, error)
+
+	GetQueryLastBlockID() string
+	GetQueryFindSchema() string
+	GetQueryCreateSchema() string
+	GetQueryDropSchema() string
+	GetQueryFindTable(string) string
+	GetQueryTableDefinition(string) string
+
+	ErrorIsDupSchema(error) bool
+
+	SQLDataType(string) string
+
 }
