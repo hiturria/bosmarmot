@@ -1,34 +1,12 @@
 package sqldb
 
 import (
-	"database/sql"
 	"errors"
-	"fmt"
-	"github.com/lib/pq"
 	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"github.com/monax/bosmarmot/vent/types"
+	"database/sql"
+	"fmt"
 )
-
-// PostgreSQL specific error codes
-const (
-	errDupTable        = "42P07"
-	errDupColumn       = "42701"
-	errUndefinedTable  = "42P01"
-	errUndefinedColumn = "42703"
-	errInvalidType     = "42704"
-)
-
-type upsertQuery struct {
-	query  string
-	length int
-	cols   map[string]upsertCols
-}
-
-type upsertCols struct {
-	numeric bool
-	posIns  int
-	posUpd  int
-}
 
 // findDefaultSchema checks if the default schema exists in SQL database
 func (db *SQLDB) findDefaultSchema() (bool, error) {
@@ -59,7 +37,7 @@ func (db *SQLDB) createDefaultSchema() error {
 	_, err := db.DB.Exec(query)
 	if err != nil {
 		if db.DBAdapter.ErrorIsDupSchema(err) {
-			db.Log.Warn("msg", "Duplicate schema", "value", db.Schema)
+			db.Log.Warn("msg", "Duplicate schema")
 			return nil
 		}
 	}
@@ -87,34 +65,39 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 }
 
 // getLogTableDef returns log structures
-func  (db *SQLDB) getLogTableDef() types.EventTables {
+func (db *SQLDB) getLogTableDef() types.EventTables {
 	tables := make(types.EventTables)
 	logCol := make(map[string]types.SQLTableColumn)
 
+	serial, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeSerial)
+	timestamp, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeDefaultTimeStamp)
+	integer, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeInt)
+	varchar, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar100)
+
 	logCol["id"] = types.SQLTableColumn{
 		Name:    "id",
-		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeSerial),
+		Type:    serial,
 		Primary: true,
 		Order:   1,
 	}
 
 	logCol["timestamp"] = types.SQLTableColumn{
 		Name:    "timestamp",
-		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeDefaultTimeStamp),
+		Type:    timestamp,
 		Primary: false,
 		Order:   2,
 	}
 
 	logCol["registers"] = types.SQLTableColumn{
 		Name:    "registers",
-		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeInt),
+		Type:    integer,
 		Primary: false,
 		Order:   3,
 	}
 
 	logCol["height"] = types.SQLTableColumn{
 		Name:    "height",
-		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar100),
+		Type:    varchar,
 		Primary: false,
 		Order:   4,
 	}
@@ -123,28 +106,28 @@ func  (db *SQLDB) getLogTableDef() types.EventTables {
 
 	detCol["id"] = types.SQLTableColumn{
 		Name:    "id",
-		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeInt),
+		Type:    integer,
 		Primary: true,
 		Order:   1,
 	}
 
 	detCol["tableName"] = types.SQLTableColumn{
 		Name:    "tblname",
-		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar100),
+		Type:    varchar,
 		Primary: true,
 		Order:   2,
 	}
 
 	detCol["tableMap"] = types.SQLTableColumn{
 		Name:    "tblmap",
-		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar100),
+		Type:    varchar,
 		Primary: true,
 		Order:   3,
 	}
 
 	detCol["registers"] = types.SQLTableColumn{
 		Name:    "registers",
-		Type:    db.DBAdapter.SQLDataType(types.SQLColumnTypeInt),
+		Type:    integer,
 		Primary: false,
 		Order:   4,
 	}
@@ -165,13 +148,11 @@ func  (db *SQLDB) getLogTableDef() types.EventTables {
 	return tables
 }
 
-
-//-------------------------------------------------------------------------------------------------------------------
 // getTableDef returns the structure of a given SQL table
 func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 	var table types.SQLTable
 
-	safeTable:=adapters.Safe(tableName)
+	safeTable := adapters.Safe(tableName)
 
 	found, err := db.findTable(safeTable)
 	if err != nil {
@@ -216,22 +197,103 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 			return table, err
 		}
 
+		if _, err = db.DBAdapter.SQLDataType(columnSQLType); err != nil {
+			return table, err
+		}
+
 		column.Order = i
 		column.Name = columnName
 		column.Primary = columnIsPK
 		column.Type = columnSQLType
-
-		//TODO: check for valid type
-		//if db.DBAdapter.SQLDataType(columnSQLType){
-		//	//
-		//}
-
 
 		columns[columnDescription] = column
 	}
 
 	table.Columns = columns
 	return table, nil
+}
+
+// alterTable alters the structure of a SQL table
+func (db *SQLDB) alterTable(newTable types.SQLTable) error {
+	db.Log.Info("msg", "Altering table", "value", newTable.Name)
+
+	safeTable := adapters.Safe(newTable.Name)
+
+	// current table structure
+	currentTable, err := db.getTableDef(safeTable)
+	if err != nil {
+		return err
+	}
+
+	// for each column in the new table structure
+	for comment, newColumn := range newTable.Columns {
+		found := false
+
+		// check if exists in the current table structure
+		for _, currentColumn := range currentTable.Columns {
+			if currentColumn.Name == newColumn.Name {
+				//if exists
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			safeCol := adapters.Safe(newColumn.Name)
+			query := db.DBAdapter.GetQueryAlterColumn(safeTable, safeCol, adapters.Safe(newColumn.Type))
+
+			db.Log.Debug("msg", "ALTER TABLE", "query", adapters.Clean(query))
+			_, err = db.DB.Exec(query)
+			if err != nil {
+				if db.DBAdapter.ErrorIsDupColumn(err) {
+					db.Log.Warn("msg", "Duplicate column", "value", safeCol)
+				} else {
+					db.Log.Debug("msg", "Error altering table", "err", err)
+					return err
+				}
+			}
+
+			if err = db.commentColumn(safeTable, safeCol, comment); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+//commentColumn add a comment to a database column
+func (db *SQLDB) commentColumn(tableName string, columnName string, comment string) error {
+	query := db.DBAdapter.GetQueryAlterColumn(tableName, columnName, comment)
+	if query != "" {
+		db.Log.Debug("msg", "COMMENT COLUMN", "query", adapters.Clean(query))
+		_, err := db.DB.Exec(query)
+		if err != nil {
+			db.Log.Debug("msg", "Error commenting column", "err", err)
+			return err
+		}
+	}
+	return nil
+}
+
+// getSelectQuery builds a select query for a specific SQL table
+func (db *SQLDB) getSelectQuery(table types.SQLTable, height string) (string, error) {
+	fields := ""
+
+	for _, tableColumn := range table.Columns {
+		colName := tableColumn.Name
+
+		if fields != "" {
+			fields += ", "
+		}
+		fields += colName
+	}
+
+	if fields == "" {
+		return "", errors.New("error table does not contain any fields")
+	}
+
+	query := db.DBAdapter.GetQuerySelectRow(table.Name, fields, height)
+	return query, nil
 }
 
 // createTable creates a new table in the default schema
@@ -242,67 +304,36 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 
 	// sort columns and create comments
 	sortedColumns := make([]types.SQLTableColumn, len(table.Columns))
-	comments := make([]string, len(table.Columns))
-
-	for comment, tableColumn := range table.Columns {
+	for _, tableColumn := range table.Columns {
 		sortedColumns[tableColumn.Order-1] = tableColumn
-		comments[tableColumn.Order-1] = fmt.Sprintf("COMMENT ON COLUMN %s.%s.%s IS '%s';", db.Schema, safeTable, adapters.Safe(tableColumn.Name), comment)
 	}
 
-	// build query
-	columnsDef := ""
-	primaryKey := ""
-
-	for _, tableColumn := range sortedColumns {
-		colName := adapters.Safe(tableColumn.Name)
-		colType := adapters.Safe(tableColumn.Type)
-
-		if columnsDef != "" {
-			columnsDef += ", "
-		}
-
-		columnsDef += fmt.Sprintf("%s %s", colName, colType)
-
-		if tableColumn.Primary {
-			columnsDef += " NOT NULL"
-			if primaryKey != "" {
-				primaryKey += ", "
-			}
-			primaryKey += colName
-		}
+	query := db.DBAdapter.GetQueryCreateTable(safeTable, sortedColumns)
+	if query == "" {
+		db.Log.Debug("msg", "empty CREATE TABLE query")
+		return errors.New("empty CREATE TABLE query")
 	}
-
-	query := fmt.Sprintf("CREATE TABLE %s.%s (%s", db.Schema, safeTable, columnsDef)
-	if primaryKey != "" {
-		query += "," + fmt.Sprintf("CONSTRAINT %s_pkey PRIMARY KEY (%s)", safeTable, primaryKey)
-	}
-	query += ");"
 
 	// create table
 	db.Log.Debug("msg", "CREATE TABLE", "query", adapters.Clean(query))
 	_, err := db.DB.Exec(query)
 	if err != nil {
-		if err, ok := err.(*pq.Error); ok {
-			switch err.Code {
-			case errDupTable:
-				db.Log.Warn("msg", "Duplicate table", "value", safeTable)
-				return nil
+		if db.DBAdapter.ErrorIsDupTable(err) {
+			db.Log.Warn("msg", "Duplicate table", "value", safeTable)
+			return nil
+		} else if db.DBAdapter.ErrorIsInvalidType(err) {
+			db.Log.Debug("msg", "Error creating table, invalid datatype", "err", err)
+			return err
 
-			case errInvalidType:
-				db.Log.Debug("msg", "Error creating table, invalid datatype", "err", err)
-				return err
-			}
 		}
 		db.Log.Debug("msg", "Error creating table", "err", err)
 		return err
 	}
 
 	// comment on table and columns
-	for _, query := range comments {
-		db.Log.Debug("msg", "COMMENT COLUMN", "query", adapters.Clean(query))
-		_, err = db.DB.Exec(query)
+	for comment, tableColumn := range table.Columns {
+		db.commentColumn(safeTable, adapters.Safe(tableColumn.Name), comment)
 		if err != nil {
-			db.Log.Debug("msg", "Error commenting column", "err", err)
 			return err
 		}
 	}
@@ -315,17 +346,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 	tables := make(types.EventTables)
 
-	query := fmt.Sprintf(`
-		SELECT
-			tblname,
-			tblmap
-		FROM
-			%s._bosmarmot_log l
-			INNER JOIN %s._bosmarmot_logdet d ON l.id = d.id
-		WHERE
-			height = $1;
-	`, db.Schema, db.Schema)
-
+	query := db.DBAdapter.GetQuerySelectLog()
 	db.Log.Debug("msg", "QUERY LOG", "query", adapters.Clean(query), "value", block)
 	rows, err := db.DB.Query(query, block)
 	if err != nil {
@@ -361,176 +382,36 @@ func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 	return tables, nil
 }
 
-// getTableQuery builds a select query for a specific SQL table
-func getTableQuery(schema string, table types.SQLTable, height string) (string, error) {
-	fields := ""
-
-	for _, tableColumn := range table.Columns {
-		colName := tableColumn.Name
-
-		if fields != "" {
-			fields += ", "
-		}
-		fields += colName
-	}
-
-	if fields == "" {
-		return "", errors.New("error table does not contain any fields")
-	}
-
-	query := "SELECT " + fields + " FROM " + schema + "." + table.Name + " WHERE height='" + height + "';"
-	return query, nil
-}
-
-// alterTable alters the structure of a SQL table
-func (db *SQLDB) alterTable(newTable types.SQLTable) error {
-	db.Log.Info("msg", "Altering table", "value", newTable.Name)
-
-	safeTable := adapters.Safe(newTable.Name)
-
-	// current table structure in PGSQL
-	currentTable, err := db.getTableDef(safeTable)
-	if err != nil {
-		return err
-	}
-
-	// for each column in the new table structure
-	for comment, newColumn := range newTable.Columns {
-		found := false
-
-		// check if exists in the current table structure
-		for _, curretColum := range currentTable.Columns {
-			if curretColum.Name == newColumn.Name {
-				//if exists
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			safeCol := adapters.Safe(newColumn.Name)
-			query := fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", db.Schema, safeTable, safeCol, adapters.Safe(newColumn.Type))
-
-			db.Log.Debug("msg", "ALTER TABLE", "query", adapters.Clean(query))
-			_, err = db.DB.Exec(query)
-			if err != nil {
-				if err, ok := err.(*pq.Error); ok {
-					if err.Code == errDupColumn {
-						db.Log.Warn("msg", "Duplicate column", "value", safeCol)
-					} else {
-						db.Log.Debug("msg", "Error altering table", "err", err)
-						return err
-					}
-				} else {
-					db.Log.Debug("msg", "Error altering table", "err", err)
-					return err
-				}
-			}
-
-			query = fmt.Sprintf("COMMENT ON COLUMN %s.%s.%s IS '%s';", db.Schema, safeTable, safeCol, comment)
-			db.Log.Debug("msg", "COMMENT COLUMN", "query", adapters.Clean(query))
-			_, err = db.DB.Exec(query)
-			if err != nil {
-				db.Log.Debug("msg", "Error commenting column", "err", err)
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// getUpsertQuery builds a query for upsert
-func getUpsertQuery(schema string, table types.SQLTable) upsertQuery {
-	columns := ""
-	insValues := ""
-	updValues := ""
-	cols := len(table.Columns)
-	nKeys := 0
-	cKey := 0
-
-	var uQuery upsertQuery
-	uQuery.cols = make(map[string]upsertCols)
-
-	i := 0
-
-	for _, tableColumn := range table.Columns {
-		isNum := adapters.IsNumeric(tableColumn.Type)
-		safeCol := adapters.Safe(tableColumn.Name)
-		cKey = 0
-		i++
-
-		// INSERT INTO TABLE (*columns).........
-		if columns != "" {
-			columns += ", "
-			insValues += ", "
-		}
-		columns += safeCol
-		insValues += "$" + fmt.Sprintf("%d", i)
-
-		if !tableColumn.Primary {
-			cKey = cols + nKeys
-			nKeys++
-
-			// INSERT........... ON CONFLICT......DO UPDATE (*updValues)
-			if updValues != "" {
-				updValues += ", "
-			}
-			updValues += safeCol + " = $" + fmt.Sprintf("%d", cKey+1)
-		}
-
-		uQuery.cols[safeCol] = upsertCols{
-			numeric: isNum,
-			posIns:  i - 1,
-			posUpd:  cKey,
-		}
-	}
-	uQuery.length = cols + nKeys
-
-	safeTable := adapters.Safe(table.Name)
-	query := fmt.Sprintf("INSERT INTO %s.%s (%s) VALUES (%s) ", schema, safeTable, columns, insValues)
-
-	if nKeys != 0 {
-		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO UPDATE SET ", safeTable)
-		query += updValues
-	} else {
-		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO NOTHING", safeTable)
-	}
-	query += ";"
-
-	uQuery.query = query
-	return uQuery
-}
-
 // getUpsertParams builds parameters in preparation for an upsert query
-func getUpsertParams(uQuery upsertQuery, row types.EventDataRow) ([]interface{}, string, error) {
-	pointers := make([]interface{}, uQuery.length)
-	containers := make([]sql.NullString, uQuery.length)
+func getUpsertParams(upsertQuery adapters.UpsertQuery, row types.EventDataRow) ([]interface{}, string, error) {
+	pointers := make([]interface{}, upsertQuery.Length)
+	containers := make([]sql.NullString, upsertQuery.Length)
 
-	for colName, col := range uQuery.cols {
+	for colName, col := range upsertQuery.Columns {
 		// interface=data
-		pointers[col.posIns] = &containers[col.posIns]
-		if col.posUpd > 0 {
-			pointers[col.posUpd] = &containers[col.posUpd]
+		pointers[col.InsPosition] = &containers[col.InsPosition]
+		if col.UpdPosition > 0 {
+			pointers[col.UpdPosition] = &containers[col.UpdPosition]
 		}
 
 		// build parameter list
 		if value, ok := row[colName]; ok {
 			//column found (not null)
-			containers[col.posIns] = sql.NullString{String: value, Valid: true}
+			containers[col.InsPosition] = sql.NullString{String: value, Valid: true}
 
 			//if column is not PK
-			if col.posUpd > 0 {
-				containers[col.posUpd] = sql.NullString{String: value, Valid: true}
+			if col.UpdPosition > 0 {
+				containers[col.UpdPosition] = sql.NullString{String: value, Valid: true}
 			}
 
-		} else if col.posUpd > 0 {
+		} else if col.UpdPosition > 0 {
 			//column not found and is not PK (null)
-			containers[col.posIns].Valid = false
-			containers[col.posUpd].Valid = false
+			containers[col.InsPosition].Valid = false
+			containers[col.UpdPosition].Valid = false
 
 		} else {
 			//column not found is PK
-			return nil, "", errors.New("Error null primary key for column " + colName)
+			return nil, "", fmt.Errorf("error null primary key for column %s", colName)
 		}
 	}
 

@@ -87,23 +87,23 @@ func getBlock() (types.EventTables, types.EventData) {
 	//table 1
 	cols1 := make(map[string]types.SQLTableColumn)
 	cols1["ID"] = types.SQLTableColumn{Name: "test_id", Type: "INTEGER", Primary: true, Order: 1}
-	cols1["Column1"] = types.SQLTableColumn{Name: "col1", Type: "VARCHAR(50)", Primary: false, Order: 2}
-	cols1["Column2"] = types.SQLTableColumn{Name: "col2", Type: "VARCHAR(50)", Primary: false, Order: 3}
-	cols1["Column3"] = types.SQLTableColumn{Name: "height", Type: "VARCHAR(50)", Primary: false, Order: 4}
+	cols1["Column1"] = types.SQLTableColumn{Name: "col1", Type: "VARCHAR(100)", Primary: false, Order: 2}
+	cols1["Column2"] = types.SQLTableColumn{Name: "col2", Type: "VARCHAR(100)", Primary: false, Order: 3}
+	cols1["Column3"] = types.SQLTableColumn{Name: "height", Type: "VARCHAR(100)", Primary: false, Order: 4}
 	cols1["Column4"] = types.SQLTableColumn{Name: "col4", Type: "TEXT", Primary: false, Order: 5}
 	table1 := types.SQLTable{Name: "test_table1", Columns: cols1}
 
 	//table 2
 	cols2 := make(map[string]types.SQLTableColumn)
-	cols2["ID"] = types.SQLTableColumn{Name: "height", Type: "VARCHAR(20)", Primary: true, Order: 1}
+	cols2["ID"] = types.SQLTableColumn{Name: "height", Type: "VARCHAR(100)", Primary: true, Order: 1}
 	cols2["SID"] = types.SQLTableColumn{Name: "sid_id", Type: "INTEGER", Primary: true, Order: 2}
-	cols2["Field 1"] = types.SQLTableColumn{Name: "field_1", Type: "VARCHAR(50)", Primary: false, Order: 3}
-	cols2["Field 2"] = types.SQLTableColumn{Name: "field_2", Type: "VARCHAR(50)", Primary: false, Order: 4}
+	cols2["Field 1"] = types.SQLTableColumn{Name: "field_1", Type: "VARCHAR(100)", Primary: false, Order: 3}
+	cols2["Field 2"] = types.SQLTableColumn{Name: "field_2", Type: "VARCHAR(100)", Primary: false, Order: 4}
 	table2 := types.SQLTable{Name: "test_table2", Columns: cols2}
 
 	//table 3
 	cols3 := make(map[string]types.SQLTableColumn)
-	cols3["Code"] = types.SQLTableColumn{Name: "height", Type: "VARCHAR(50)", Primary: true, Order: 1}
+	cols3["Code"] = types.SQLTableColumn{Name: "height", Type: "VARCHAR(100)", Primary: true, Order: 1}
 	cols3["Value A"] = types.SQLTableColumn{Name: "val", Type: "INTEGER", Primary: false, Order: 2}
 	table3 := types.SQLTable{Name: "test_table3", Columns: cols3}
 

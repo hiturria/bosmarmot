@@ -6,6 +6,18 @@ import (
 	"github.com/monax/bosmarmot/vent/types"
 )
 
+type UpsertQuery struct {
+	Query   string
+	Length  int
+	Columns map[string]UpsertColumn
+}
+
+type UpsertColumn struct {
+	IsNumeric   bool
+	InsPosition int
+	UpdPosition int
+}
+
 // Safe sanitizes a parameter
 func Safe(parameter string) string {
 	replacer := strings.NewReplacer(";", "", ",", "")
@@ -21,6 +33,5 @@ func Clean(parameter string) string {
 // IsNumeric determines if a datatype is numeric
 func IsNumeric(dataType string) bool {
 	cType := strings.ToUpper(dataType)
-	// TODO: generalize these types
 	return cType == types.SQLColumnTypeInt || cType == types.SQLColumnTypeSerial
 }

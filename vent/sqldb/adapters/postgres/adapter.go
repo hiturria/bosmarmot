@@ -5,22 +5,29 @@ import (
 	"github.com/monax/bosmarmot/vent/logger"
 	"fmt"
 	"github.com/lib/pq"
+	"github.com/monax/bosmarmot/vent/types"
+	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 )
 
 // PostgreSQL specific error codes
 const (
-	errDupSchema = "42P06"
+	errDupSchema       = "42P06"
+	errDupColumn       = "42701"
+	errDupTable        = "42P07"
+	errInvalidType     = "42704"
+	errUndefinedTable  = "42P01"
+	errUndefinedColumn = "42703"
 )
 
 var sqlDataTypes = map[string]string{
-	"INTEGER":           "INTEGER",
-	"TEXT":              "TEXT",
-	"VARCHAR(100)":      "VARCHAR(100)",
-	"BOOLEAN":           "BOOLEAN",
-	"BYTEA":             "BYTEA",
-	"TIMESTAMP":         "TIMESTAMP",
-	"TIMESTAMP_DEFAULT": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-	"SERIAL":            "SERIAL",
+	types.SQLColumnTypeInt:              "INTEGER",
+	types.SQLColumnTypeText:             "TEXT",
+	types.SQLColumnTypeVarchar100:       "VARCHAR(100)",
+	types.SQLColumnTypeBool:             "BOOLEAN",
+	types.SQLColumnTypeByteA:            "BYTEA",
+	types.SQLColumnTypeTimeStamp:        "TIMESTAMP",
+	types.SQLColumnTypeDefaultTimeStamp: "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+	types.SQLColumnTypeSerial:           "SERIAL",
 }
 
 // Adapter implements DBAdapter fro Postgres
@@ -53,11 +60,113 @@ func (adapter *Adapter) Open() (*sql.DB, error) {
 	return db, err
 }
 
-func (adapter *Adapter) SQLDataType(sqlGenericType string) string {
+// SQLDataType convert generic dataTypes to database dependent dataTypes
+func (adapter *Adapter) SQLDataType(sqlGenericType string) (string, error) {
 	if sqlDataType, ok := sqlDataTypes[sqlGenericType]; ok {
-		return sqlDataType
+		return sqlDataType, nil
 	}
-	return sqlDataTypes["VARCHAR(100)"]
+	err := fmt.Errorf("datatype %s not recognized", sqlGenericType)
+	return "", err
+}
+
+// GetQueryCreateTable build query for creating a table
+func (adapter *Adapter) GetQueryCreateTable(tableName string, columns []types.SQLTableColumn) string {
+
+	// build query
+	columnsDef := ""
+	primaryKey := ""
+
+	for _, tableColumn := range columns {
+		colName := adapters.Safe(tableColumn.Name)
+		colType := adapters.Safe(tableColumn.Type)
+
+		if columnsDef != "" {
+			columnsDef += ", "
+		}
+
+		columnsDef += fmt.Sprintf("%s %s", colName, colType)
+
+		if tableColumn.Primary {
+			columnsDef += " NOT NULL"
+			if primaryKey != "" {
+				primaryKey += ", "
+			}
+			primaryKey += colName
+		}
+	}
+
+	query := fmt.Sprintf("CREATE TABLE %s.%s (%s", adapter.Schema, tableName, columnsDef)
+	if primaryKey != "" {
+		query += "," + fmt.Sprintf("CONSTRAINT %s_pkey PRIMARY KEY (%s)", tableName, primaryKey)
+	}
+	query += ");"
+
+	return query
+}
+
+// getUpsertQuery builds a query for upsert
+func (adapter *Adapter) GetQueryUpsert(table types.SQLTable) adapters.UpsertQuery {
+	columns := ""
+	insValues := ""
+	updValues := ""
+	cols := len(table.Columns)
+	nKeys := 0
+	cKey := 0
+
+	upsertQuery := adapters.UpsertQuery{
+		Query:   "",
+		Length:  0,
+		Columns: make(map[string]adapters.UpsertColumn),
+	}
+
+	i := 0
+
+	for _, tableColumn := range table.Columns {
+		isNum := adapters.IsNumeric(tableColumn.Type)
+		safeCol := adapters.Safe(tableColumn.Name)
+		cKey = 0
+		i++
+
+		// INSERT INTO TABLE (*columns).........
+		if columns != "" {
+			columns += ", "
+			insValues += ", "
+		}
+		columns += safeCol
+		insValues += "$" + fmt.Sprintf("%d", i)
+
+		if !tableColumn.Primary {
+			cKey = cols + nKeys
+			nKeys++
+
+			// INSERT........... ON CONFLICT......DO UPDATE (*updValues)
+			if updValues != "" {
+				updValues += ", "
+			}
+			updValues += safeCol + " = $" + fmt.Sprintf("%d", cKey+1)
+		}
+
+		upsertQuery.Columns[safeCol] = adapters.UpsertColumn{
+			IsNumeric:   isNum,
+			InsPosition: i - 1,
+			UpdPosition: cKey,
+		}
+	}
+	upsertQuery.Length = cols + nKeys
+
+	safeTable := adapters.Safe(table.Name)
+	query := fmt.Sprintf("INSERT INTO %s.%s (%s) VALUES (%s) ", adapter.Schema, safeTable, columns, insValues)
+
+	if nKeys != 0 {
+		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO UPDATE SET ", safeTable)
+		query += updValues
+	} else {
+		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO NOTHING", safeTable)
+	}
+	query += ";"
+
+	upsertQuery.Query = query
+	return upsertQuery
 }
 
 //--------------------------------------------------------------------------------------------------------------------
@@ -107,7 +216,7 @@ func (adapter *Adapter) GetQueryDropSchema() string {
 }
 
 // GetQueryFindTable returns query that checks if a table exists (true/false)
-func (adapter *Adapter) GetQueryFindTable(table string) string {
+func (adapter *Adapter) GetQueryFindTable(tableName string) string {
 	query := `
 		SELECT
 			EXISTS (
@@ -123,11 +232,13 @@ func (adapter *Adapter) GetQueryFindTable(table string) string {
 			)
 	;`
 
-	return fmt.Sprintf(query, adapter.Schema, table)
+	return fmt.Sprintf(query, adapter.Schema, tableName)
 }
 
 // GetQueryTableDefinition returns query with table structure
-func (adapter *Adapter) GetQueryTableDefinition(table string) string {
+func (adapter *Adapter) GetQueryTableDefinition(tableName string) string {
+	//WHEN c.data_type='integer' AND is_nullable='NO' THEN 'SERIAL'
+
 	query := `
 	WITH dsc AS (
 		SELECT pgd.objsubid,st.schemaname,st.relname,pgd.description
@@ -137,7 +248,6 @@ func (adapter *Adapter) GetQueryTableDefinition(table string) string {
 	SELECT
 		c.column_name ColumnName,
 		(CASE 
-		WHEN c.data_type='integer' AND is_nullable='NO' THEN 'SERIAL'
 		WHEN c.data_type='integer' THEN 'INTEGER'
 		WHEN c.data_type='boolean' THEN 'BOOLEAN'
 		WHEN c.data_type='bytea' THEN 'BYTEA'
@@ -160,7 +270,49 @@ func (adapter *Adapter) GetQueryTableDefinition(table string) string {
 		AND c.table_name = '%s'
 	;`
 
-	return fmt.Sprintf(query, adapter.Schema, table)
+	return fmt.Sprintf(query, adapter.Schema, tableName)
+}
+
+// GetQueryAlterTable returns query for adding a new column to a table
+func (adapter *Adapter) GetQueryAlterColumn(tableName string, columnName string, sqlGenericType string) string {
+	sqlType, _ := adapter.SQLDataType(sqlGenericType)
+	return fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", adapter.Schema, tableName, tableName, sqlType)
+}
+
+// GetQueryCommentColumn returns query for commenting a column
+func (adapter *Adapter) GetQueryCommentColumn(tableName string, columnName string, comment string) string {
+	return fmt.Sprintf("COMMENT ON COLUMN %s.%s.%s IS '%s';", adapter.Schema, tableName, columnName, comment)
+}
+
+// GetQuerySelectRow returns query for selecting row values
+func (adapter *Adapter) GetQuerySelectRow(tableName string, fields string, indexValue string) string {
+	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE height='%s';", fields, adapter.Schema, tableName, indexValue)
+}
+
+// GetQuerySelectLog returns query for selecting all tables in a block trn
+func (adapter *Adapter) GetQuerySelectLog() string {
+	query := `
+		SELECT
+			tblname,
+			tblmap
+		FROM
+			%s._bosmarmot_log l
+			INNER JOIN %s._bosmarmot_logdet d ON l.id = d.id
+		WHERE
+			height = $1;
+	`
+	query = fmt.Sprintf(query, adapter.Schema, adapter.Schema)
+	return query
+}
+
+// GetQueryInsertLog returns query for inserting into log
+func (adapter *Adapter) GetQueryInsertLog() string {
+	return fmt.Sprintf("INSERT INTO %s._bosmarmot_log (registers, height) VALUES ($1, $2) RETURNING id", adapter.Schema)
+}
+
+// GetQueryInsertLogDetail returns query for inserting into logdetail
+func (adapter *Adapter) GetQueryInsertLogDetail() string {
+	return fmt.Sprintf("INSERT INTO %s._bosmarmot_logdet (id,tblname,tblmap,registers) VALUES ($1,$2,$3,$4)", adapter.Schema)
 }
 
 //---------------------------------------------------------------------------------------------------------------------
@@ -170,6 +322,58 @@ func (adapter *Adapter) ErrorIsDupSchema(err error) bool {
 		if err.Code == errDupSchema {
 			return true
 		}
+	}
+	return false
+}
+
+func (adapter *Adapter) ErrorIsDupColumn(err error) bool {
+	if err, ok := err.(*pq.Error); ok {
+		if err.Code == errDupColumn {
+			return true
+		}
+	}
+	return false
+}
+
+func (adapter *Adapter) ErrorIsDupTable(err error) bool {
+	if err, ok := err.(*pq.Error); ok {
+		if err.Code == errDupTable {
+			return true
+		}
+	}
+	return false
+}
+
+func (adapter *Adapter) ErrorIsInvalidType(err error) bool {
+	if err, ok := err.(*pq.Error); ok {
+		if err.Code == errInvalidType {
+			return true
+		}
+	}
+	return false
+}
+
+func (adapter *Adapter) ErrorIsUndefinedTable(err error) bool {
+	if err, ok := err.(*pq.Error); ok {
+		if err.Code == errUndefinedTable {
+			return true
+		}
+	}
+	return false
+}
+
+func (adapter *Adapter) ErrorIsUndefinedColumn(err error) bool {
+	if err, ok := err.(*pq.Error); ok {
+		if err.Code == errUndefinedColumn {
+			return true
+		}
+	}
+	return false
+}
+
+func (adapter *Adapter) ErrorIsSQL(err error) bool {
+	if _, ok := err.(*pq.Error); ok {
+		return true
 	}
 	return false
 }

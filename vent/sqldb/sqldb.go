@@ -9,12 +9,10 @@ import (
 	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"database/sql"
 	"fmt"
-	"github.com/lib/pq"
 )
 
 // SQLDB implements the access to a sql database
 type SQLDB struct {
-	Schema    string
 	DB        *sql.DB
 	Log       *logger.Logger
 	DBAdapter DBAdapter
@@ -23,8 +21,7 @@ type SQLDB struct {
 // NewSQLDB connects to a SQL database and creates default schema and _bosmarmot_log if missing
 func NewSQLDB(dbAdapter string, dbURL string, schema string, l *logger.Logger) (*SQLDB, error) {
 	db := &SQLDB{
-		Log:    l,
-		Schema: schema,
+		Log: l,
 	}
 
 	switch dbAdapter {
@@ -167,7 +164,8 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	// insert into log tables
 	id := 0
 	length := len(eventTables)
-	query := fmt.Sprintf("INSERT INTO %s._bosmarmot_log (registers, height) VALUES ($1, $2) RETURNING id", db.Schema)
+	query := db.DBAdapter.GetQueryInsertLog()
+
 	db.Log.Debug("msg", "INSERT LOG", "query", adapters.Clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
 	err = tx.QueryRow(query, length, eventData.Block).Scan(&id)
 	if err != nil {
@@ -176,7 +174,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 	// prepare log detail statement
-	logQuery := fmt.Sprintf("INSERT INTO %s._bosmarmot_logdet (id,tblname,tblmap,registers) VALUES ($1,$2,$3,$4)", db.Schema)
+	logQuery := db.DBAdapter.GetQueryInsertLogDetail()
 	logStmt, err = tx.Prepare(logQuery)
 	if err != nil {
 		db.Log.Debug("msg", "Error preparing log stmt", "err", err)
@@ -199,7 +197,7 @@ loop:
 		}
 
 		// get table upsert query
-		uQuery := getUpsertQuery(db.Schema, table)
+		uQuery := db.DBAdapter.GetQueryUpsert(table)
 
 		// for Each Row
 		for _, row := range dataRows {
@@ -211,8 +209,8 @@ loop:
 			}
 
 			// upsert row data
-			db.Log.Debug("msg", "UPSERT", "query", adapters.Clean(uQuery.query), "value", value)
-			_, err = tx.Exec(uQuery.query, pointers...)
+			db.Log.Debug("msg", "UPSERT", "query", adapters.Clean(uQuery.Query), "value", value)
+			_, err = tx.Exec(uQuery.Query, pointers...)
 			if err != nil {
 				db.Log.Debug("msg", "Error Upserting", "err", err)
 				// exits from all loops -> continue in close log stmt
@@ -238,9 +236,9 @@ loop:
 			return errRb
 		}
 
-		if pqErr, ok := err.(*pq.Error); ok {
+		if db.DBAdapter.ErrorIsSQL(err) {
 			// table does not exists
-			if pqErr.Code == errUndefinedTable {
+			if db.DBAdapter.ErrorIsUndefinedTable(err) {
 				db.Log.Warn("msg", "Table not found", "value", safeTable)
 				if err = db.SynchronizeDB(eventTables); err != nil {
 					return err
@@ -249,15 +247,15 @@ loop:
 			}
 
 			// columns do not match
-			if pqErr.Code == errUndefinedColumn {
+			if db.DBAdapter.ErrorIsUndefinedColumn(err) {
 				db.Log.Warn("msg", "Column not found", "value", safeTable)
 				if err = db.SynchronizeDB(eventTables); err != nil {
 					return err
 				}
 				return db.SetBlock(eventTables, eventData)
 			}
-			db.Log.Debug("msg", "Error upserting row", "err", pqErr)
-			return pqErr
+			db.Log.Debug("msg", "Error upserting row", "err", err)
+			return err
 		}
 		return err
 	}
@@ -289,7 +287,7 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 	// for each table
 	for _, table := range tables {
 		// get query for table
-		query, err = getTableQuery(db.Schema, table, block)
+		query, err = db.getSelectQuery(table, block)
 		if err != nil {
 			db.Log.Debug("msg", "Error building table query", "err", err)
 			return data, err
