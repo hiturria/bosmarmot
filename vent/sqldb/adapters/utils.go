@@ -6,18 +6,6 @@ import (
 	"github.com/monax/bosmarmot/vent/types"
 )
 
-type UpsertQuery struct {
-	Query   string
-	Length  int
-	Columns map[string]UpsertColumn
-}
-
-type UpsertColumn struct {
-	IsNumeric   bool
-	InsPosition int
-	UpdPosition int
-}
-
 // Safe sanitizes a parameter
 func Safe(parameter string) string {
 	replacer := strings.NewReplacer(";", "", ",", "")

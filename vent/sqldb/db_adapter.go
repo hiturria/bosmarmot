@@ -2,30 +2,30 @@ package sqldb
 
 import (
 	"database/sql"
-	"github.com/monax/bosmarmot/vent/types"
+
 	"github.com/monax/bosmarmot/vent/sqldb/adapters"
+	"github.com/monax/bosmarmot/vent/types"
 )
 
 // DBAdapter database access interface
 type DBAdapter interface {
-	Open() (*sql.DB, error)
+	Open(dbURL string) (*sql.DB, error)
 	SQLDataType(string) (string, error)
 
-	GetQueryCreateTable(tableName string, columns []types.SQLTableColumn) string
-	GetQueryUpsert(table types.SQLTable) adapters.UpsertQuery
-
-	GetQueryLastBlockID() string
-	GetQueryFindSchema() string
-	GetQueryCreateSchema() string
-	GetQueryDropSchema() string
-	GetQueryFindTable(tableName string) string
-	GetQueryTableDefinition(tableName string) string
-	GetQueryAlterColumn(tableName string, columnName string, sqlGenericType string) string
-	GetQueryCommentColumn(tableName string, columnName string, comment string) string
-	GetQuerySelectRow(tableName string, fields string, indexValue string) string
-	GetQuerySelectLog() string
-	GetQueryInsertLog() string
-	GetQueryInsertLogDetail() string
+	GetCreateTableQuery(tableName string, columns []types.SQLTableColumn) string
+	GetUpsertQuery(table types.SQLTable) adapters.UpsertQuery
+	GetLastBlockIDQuery() string
+	GetFindSchemaQuery() string
+	GetCreateSchemaQuery() string
+	GetDropSchemaQuery() string
+	GetFindTableQuery(tableName string) string
+	GetTableDefinitionQuery(tableName string) string
+	GetAlterColumnQuery(tableName string, columnName string, sqlGenericType string) string
+	GetCommentColumnQuery(tableName string, columnName string, comment string) string
+	GetSelectRowQuery(tableName string, fields string, indexValue string) string
+	GetSelectLogQuery() string
+	GetInsertLogQuery() string
+	GetInsertLogDetailQuery() string
 
 	ErrorIsDupSchema(error) bool
 	ErrorIsDupColumn(error) bool

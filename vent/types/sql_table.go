@@ -11,6 +11,7 @@ type SQLTable struct {
 type SQLTableColumn struct {
 	Name    string
 	Type    string
+	Length  int
 	Primary bool
 	Order   int
 }

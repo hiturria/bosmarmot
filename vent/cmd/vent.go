@@ -21,6 +21,7 @@ var ventCmd = &cobra.Command{
 var cfg = config.DefaultFlags()
 
 func init() {
+	ventCmd.Flags().StringVar(&cfg.DBAdapter, "db-adapter", cfg.DBAdapter, "Database adatper (only 'postgres' is accepted for now)")
 	ventCmd.Flags().StringVar(&cfg.DBURL, "db-url", cfg.DBURL, "Postgres database URL")
 	ventCmd.Flags().StringVar(&cfg.DBSchema, "db-schema", cfg.DBSchema, "Postgres database schema")
 	ventCmd.Flags().StringVar(&cfg.GRPCAddr, "grpc-addr", cfg.GRPCAddr, "Burrow gRPC address")

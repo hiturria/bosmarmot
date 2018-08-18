@@ -1,47 +1,46 @@
 package sqldb
 
 import (
+	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/monax/bosmarmot/vent/logger"
-	"github.com/monax/bosmarmot/vent/sqldb/adapters/postgres"
-	"github.com/monax/bosmarmot/vent/types"
 	"github.com/monax/bosmarmot/vent/sqldb/adapters"
-	"database/sql"
-	"fmt"
+	"github.com/monax/bosmarmot/vent/types"
 )
 
 // SQLDB implements the access to a sql database
 type SQLDB struct {
 	DB        *sql.DB
-	Log       *logger.Logger
 	DBAdapter DBAdapter
+	Schema    string
+	Log       *logger.Logger
 }
 
 // NewSQLDB connects to a SQL database and creates default schema and _bosmarmot_log if missing
-func NewSQLDB(dbAdapter string, dbURL string, schema string, l *logger.Logger) (*SQLDB, error) {
+func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, error) {
 	db := &SQLDB{
-		Log: l,
+		Schema: schema,
+		Log:    log,
 	}
 
 	switch dbAdapter {
 	case "postgres":
-		db.DBAdapter = postgres.NewSQLDB(dbURL, adapters.Safe(schema), l)
-
+		db.DBAdapter = adapters.NewPostgresAdapter(adapters.Safe(schema), log)
 	default:
-		return nil, errors.New("invalid database adapter")
+		return nil, errors.New("Invalid database adapter")
 	}
 
-	dbc, err := db.DBAdapter.Open()
+	dbc, err := db.DBAdapter.Open(dbURL)
 	if err != nil {
-		db.Log.Error("msg", "Error opening database connection", "err", err)
+		db.Log.Debug("msg", "Error opening database connection", "err", err)
 		return nil, err
 	}
-
 	db.DB = dbc
 
 	if err = db.Ping(); err != nil {
-		db.Log.Error("msg", "Error database not available", "err", err)
+		db.Log.Debug("msg", "Error database not available", "err", err)
 		return nil, err
 	}
 
@@ -74,22 +73,22 @@ func (db *SQLDB) Close() {
 
 // Ping database
 func (db *SQLDB) Ping() error {
-	err := db.DB.Ping()
-	if err != nil {
+	if err := db.DB.Ping(); err != nil {
 		db.Log.Debug("msg", "Error database not available", "err", err)
+		return err
 	}
-	return err
+
+	return nil
 }
 
 // GetLastBlockID returns last inserted blockId from log table
 func (db *SQLDB) GetLastBlockID() (string, error) {
-	query := db.DBAdapter.GetQueryLastBlockID()
+	query := db.DBAdapter.GetLastBlockIDQuery()
 	id := ""
 
 	db.Log.Debug("msg", "MAX ID", "query", adapters.Clean(query))
-	err := db.DB.QueryRow(query).Scan(&id)
 
-	if err != nil {
+	if err := db.DB.QueryRow(query).Scan(&id); err != nil {
 		db.Log.Debug("msg", "Error selecting last block id", "err", err)
 		return "", err
 	}
@@ -107,21 +106,18 @@ func (db *SQLDB) DestroySchema() error {
 	}
 
 	if found {
-		query := db.DBAdapter.GetQueryDropSchema()
+		query := db.DBAdapter.GetDropSchemaQuery()
 
 		db.Log.Info("msg", "Drop schema", "query", query)
-		_, err := db.DB.Exec(query)
-		if err != nil {
-			db.Log.Debug("msg", "Error dropping schema", "err", err)
-		}
 
-		return err
+		if _, err := db.DB.Exec(query); err != nil {
+			db.Log.Debug("msg", "Error dropping schema", "err", err)
+			return err
+		}
 	}
 
 	return nil
 }
-
-//-------------------------------------------------------------------------------------------------------------------
 
 // SynchronizeDB synchronize config structures with SQL database table structures
 func (db *SQLDB) SynchronizeDB(eventTables types.EventTables) error {
@@ -164,7 +160,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	// insert into log tables
 	id := 0
 	length := len(eventTables)
-	query := db.DBAdapter.GetQueryInsertLog()
+	query := db.DBAdapter.GetInsertLogQuery()
 
 	db.Log.Debug("msg", "INSERT LOG", "query", adapters.Clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
 	err = tx.QueryRow(query, length, eventData.Block).Scan(&id)
@@ -174,7 +170,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 	// prepare log detail statement
-	logQuery := db.DBAdapter.GetQueryInsertLogDetail()
+	logQuery := db.DBAdapter.GetInsertLogDetailQuery()
 	logStmt, err = tx.Prepare(logQuery)
 	if err != nil {
 		db.Log.Debug("msg", "Error preparing log stmt", "err", err)
@@ -182,7 +178,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 loop:
-// For Each table in the block
+	// for each table in the block
 	for tblMap, table := range eventTables {
 		safeTable = adapters.Safe(table.Name)
 
@@ -197,7 +193,7 @@ loop:
 		}
 
 		// get table upsert query
-		uQuery := db.DBAdapter.GetQueryUpsert(table)
+		uQuery := db.DBAdapter.GetUpsertQuery(table)
 
 		// for Each Row
 		for _, row := range dataRows {
@@ -221,8 +217,7 @@ loop:
 
 	// close log statement
 	if err == nil {
-		err = logStmt.Close()
-		if err != nil {
+		if err = logStmt.Close(); err != nil {
 			db.Log.Debug("msg", "Error closing log stmt", "err", err)
 		}
 	}
@@ -230,8 +225,7 @@ loop:
 	//------------------------error handling----------------------
 	if err != nil {
 		// rollback error
-		errRb := tx.Rollback()
-		if errRb != nil {
+		if errRb := tx.Rollback(); errRb != nil {
 			db.Log.Debug("msg", "Error on rollback", "err", errRb)
 			return errRb
 		}
@@ -254,15 +248,17 @@ loop:
 				}
 				return db.SetBlock(eventTables, eventData)
 			}
+
 			db.Log.Debug("msg", "Error upserting row", "err", err)
 			return err
 		}
+
 		return err
 	}
 
 	db.Log.Debug("msg", "COMMIT")
-	err = tx.Commit()
-	if err != nil {
+
+	if err := tx.Commit(); err != nil {
 		db.Log.Debug("msg", "Error on commit", "err", err)
 		return err
 	}
@@ -299,13 +295,13 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 			db.Log.Debug("msg", "Error querying table data", "err", err)
 			return data, err
 		}
+		defer rows.Close()
 
 		cols, err := rows.Columns()
 		if err != nil {
 			db.Log.Debug("msg", "Error getting row columns", "err", err)
 			return data, err
 		}
-		rows.Close()
 
 		// builds pointers
 		length := len(cols)
@@ -329,9 +325,9 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 			}
 			db.Log.Debug("msg", "Query resultset", "value", fmt.Sprintf("%+v", containers))
 
-			//for each column in row
+			// for each column in row
 			for i, col := range cols {
-				//if not null add  value
+				// add value if not null
 				if containers[i].Valid {
 					row[col] = containers[i].String
 				}

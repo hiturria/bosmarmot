@@ -47,7 +47,7 @@ func TestNewParser(t *testing.T) {
 		col, err = tableStruct.GetColumn("UpdateUserAccount", "userAddress")
 		require.NoError(t, err)
 		require.Equal(t, true, col.Primary)
-		require.Equal(t, "VARCHAR(100)", col.Type)
+		require.Equal(t, "VARCHAR", col.Type)
 		require.Equal(t, "address", col.Name)
 
 		col, err = tableStruct.GetColumn("UpdateUserAccount", "index")
@@ -60,7 +60,7 @@ func TestNewParser(t *testing.T) {
 		col, err = tableStruct.GetColumn("UpdateUserAccount", "height")
 		require.NoError(t, err)
 		require.Equal(t, false, col.Primary)
-		require.Equal(t, "VARCHAR(100)", col.Type)
+		require.Equal(t, "VARCHAR", col.Type)
 		require.Equal(t, "height", col.Name)
 		require.Equal(t, 1, col.Order)
 	})

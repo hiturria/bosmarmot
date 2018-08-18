@@ -37,5 +37,5 @@ go install ./vent
 vent --help
 
 # How to run vent command:
-vent --db-url="postgres://user:pass@localhost:5432/bosmarmot?sslmode=disable" --db-schema="bosmarmot" --grpc-addr="localhost:10997" --log-level="debug" --cfg-file="<sqlsol conf file path>"
+vent --db-adapter="postgres" --db-url="postgres://user:pass@localhost:5432/bosmarmot?sslmode=disable" --db-schema="bosmarmot" --grpc-addr="localhost:10997" --log-level="debug" --cfg-file="<sqlsol conf file path>"
 ```

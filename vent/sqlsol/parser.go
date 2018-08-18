@@ -108,7 +108,7 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 			for i, eventInput := range eventDef.Event.Inputs {
 				if col, ok := eventDef.Columns[eventInput.Name]; ok {
 
-					sqlType, err := getSQLType(eventInput.Type)
+					sqlType, sqlTypeLength, err := getSQLType(eventInput.Type)
 					if err != nil {
 						return nil, err
 					}
@@ -116,6 +116,7 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 					columns[eventInput.Name] = types.SQLTableColumn{
 						Name:    col.Name,
 						Type:    sqlType,
+						Length:  sqlTypeLength,
 						Primary: col.Primary,
 						Order:   i + (globalColumnsLength + 1),
 					}
@@ -139,18 +140,18 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 
 // getSQLType maps event input types with corresponding
 // SQL column types
-func getSQLType(eventInputType string) (string, error) {
+func getSQLType(eventInputType string) (string, int, error) {
 	switch strings.ToLower(eventInputType) {
 	case types.EventInputTypeInt, types.EventInputTypeUInt:
-		return types.SQLColumnTypeInt, nil
+		return types.SQLColumnTypeInt, 0, nil
 	case types.EventInputTypeAddress, types.EventInputTypeBytes:
-		return types.SQLColumnTypeVarchar100, nil
+		return types.SQLColumnTypeVarchar, 100, nil
 	case types.EventInputTypeBool:
-		return types.SQLColumnTypeBool, nil
+		return types.SQLColumnTypeBool, 0, nil
 	case types.EventInputTypeString:
-		return types.SQLColumnTypeText, nil
+		return types.SQLColumnTypeText, 0, nil
 	default:
-		return "", fmt.Errorf("getSQLType: don't know how to map eventInputType: %s ", eventInputType)
+		return "", 0, fmt.Errorf("getSQLType: don't know how to map eventInputType: %s ", eventInputType)
 	}
 }
 
@@ -166,7 +167,8 @@ func getGlobalColumns() map[string]types.SQLTableColumn {
 
 	globalColumns["height"] = types.SQLTableColumn{
 		Name:    "height",
-		Type:    types.SQLColumnTypeVarchar100,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
 		Primary: false,
 		Order:   1,
 	}
@@ -187,14 +189,16 @@ func getGlobalColumns() map[string]types.SQLTableColumn {
 
 	globalColumns["eventType"] = types.SQLTableColumn{
 		Name:    "eventtype",
-		Type:    types.SQLColumnTypeVarchar100,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
 		Primary: false,
 		Order:   4,
 	}
 
 	globalColumns["eventName"] = types.SQLTableColumn{
 		Name:    "eventname",
-		Type:    types.SQLColumnTypeVarchar100,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
 		Primary: false,
 		Order:   5,
 	}

@@ -1,18 +1,19 @@
 package sqldb
 
 import (
+	"database/sql"
 	"errors"
+	"fmt"
+
 	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"github.com/monax/bosmarmot/vent/types"
-	"database/sql"
-	"fmt"
 )
 
 // findDefaultSchema checks if the default schema exists in SQL database
 func (db *SQLDB) findDefaultSchema() (bool, error) {
 	var found bool
 
-	query := db.DBAdapter.GetQueryFindSchema()
+	query := db.DBAdapter.GetFindSchemaQuery()
 
 	db.Log.Debug("msg", "FIND SCHEMA", "query", adapters.Clean(query))
 	err := db.DB.QueryRow(query).Scan(&found)
@@ -31,7 +32,7 @@ func (db *SQLDB) findDefaultSchema() (bool, error) {
 func (db *SQLDB) createDefaultSchema() error {
 	db.Log.Info("msg", "Creating schema")
 
-	query := db.DBAdapter.GetQueryCreateSchema()
+	query := db.DBAdapter.GetCreateSchemaQuery()
 
 	db.Log.Debug("msg", "CREATE SCHEMA", "query", adapters.Clean(query))
 	_, err := db.DB.Exec(query)
@@ -48,7 +49,7 @@ func (db *SQLDB) createDefaultSchema() error {
 func (db *SQLDB) findTable(tableName string) (bool, error) {
 	found := false
 	safeTable := adapters.Safe(tableName)
-	query := db.DBAdapter.GetQueryFindTable(safeTable)
+	query := db.DBAdapter.GetFindTableQuery(safeTable)
 
 	db.Log.Debug("msg", "FIND TABLE", "query", adapters.Clean(query), "value", safeTable)
 	err := db.DB.QueryRow(query).Scan(&found)
@@ -67,12 +68,13 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 // getLogTableDef returns log structures
 func (db *SQLDB) getLogTableDef() types.EventTables {
 	tables := make(types.EventTables)
-	logCol := make(map[string]types.SQLTableColumn)
 
 	serial, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeSerial)
-	timestamp, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeDefaultTimeStamp)
+	timestamp, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeTimeStamp)
 	integer, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeInt)
-	varchar, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar100)
+	varchar, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar)
+
+	logCol := make(map[string]types.SQLTableColumn)
 
 	logCol["id"] = types.SQLTableColumn{
 		Name:    "id",
@@ -98,8 +100,14 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 	logCol["height"] = types.SQLTableColumn{
 		Name:    "height",
 		Type:    varchar,
+		Length:  100,
 		Primary: false,
 		Order:   4,
+	}
+
+	tables["log"] = types.SQLTable{
+		Name:    "_bosmarmot_log",
+		Columns: logCol,
 	}
 
 	detCol := make(map[string]types.SQLTableColumn)
@@ -114,6 +122,7 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 	detCol["tableName"] = types.SQLTableColumn{
 		Name:    "tblname",
 		Type:    varchar,
+		Length:  100,
 		Primary: true,
 		Order:   2,
 	}
@@ -121,6 +130,7 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 	detCol["tableMap"] = types.SQLTableColumn{
 		Name:    "tblmap",
 		Type:    varchar,
+		Length:  100,
 		Primary: true,
 		Order:   3,
 	}
@@ -132,18 +142,10 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 		Order:   4,
 	}
 
-	log := types.SQLTable{
-		Name:    "_bosmarmot_log",
-		Columns: logCol,
-	}
-
-	det := types.SQLTable{
+	tables["detail"] = types.SQLTable{
 		Name:    "_bosmarmot_logdet",
 		Columns: detCol,
 	}
-
-	tables["log"] = log
-	tables["detail"] = det
 
 	return tables
 }
@@ -165,7 +167,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 	}
 
 	table.Name = safeTable
-	query := db.DBAdapter.GetQueryTableDefinition(safeTable)
+	query := db.DBAdapter.GetTableDefinitionQuery(safeTable)
 
 	db.Log.Debug("msg", "QUERY STRUCTURE", "query", adapters.Clean(query), "value", safeTable)
 	rows, err := db.DB.Query(query)
@@ -240,7 +242,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 
 		if !found {
 			safeCol := adapters.Safe(newColumn.Name)
-			query := db.DBAdapter.GetQueryAlterColumn(safeTable, safeCol, adapters.Safe(newColumn.Type))
+			query := db.DBAdapter.GetAlterColumnQuery(safeTable, safeCol, adapters.Safe(newColumn.Type))
 
 			db.Log.Debug("msg", "ALTER TABLE", "query", adapters.Clean(query))
 			_, err = db.DB.Exec(query)
@@ -263,7 +265,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 
 //commentColumn add a comment to a database column
 func (db *SQLDB) commentColumn(tableName string, columnName string, comment string) error {
-	query := db.DBAdapter.GetQueryAlterColumn(tableName, columnName, comment)
+	query := db.DBAdapter.GetCommentColumnQuery(tableName, columnName, comment)
 	if query != "" {
 		db.Log.Debug("msg", "COMMENT COLUMN", "query", adapters.Clean(query))
 		_, err := db.DB.Exec(query)
@@ -292,7 +294,7 @@ func (db *SQLDB) getSelectQuery(table types.SQLTable, height string) (string, er
 		return "", errors.New("error table does not contain any fields")
 	}
 
-	query := db.DBAdapter.GetQuerySelectRow(table.Name, fields, height)
+	query := db.DBAdapter.GetSelectRowQuery(table.Name, fields, height)
 	return query, nil
 }
 
@@ -308,7 +310,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 		sortedColumns[tableColumn.Order-1] = tableColumn
 	}
 
-	query := db.DBAdapter.GetQueryCreateTable(safeTable, sortedColumns)
+	query := db.DBAdapter.GetCreateTableQuery(safeTable, sortedColumns)
 	if query == "" {
 		db.Log.Debug("msg", "empty CREATE TABLE query")
 		return errors.New("empty CREATE TABLE query")
@@ -346,7 +348,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 	tables := make(types.EventTables)
 
-	query := db.DBAdapter.GetQuerySelectLog()
+	query := db.DBAdapter.GetSelectLogQuery()
 	db.Log.Debug("msg", "QUERY LOG", "query", adapters.Clean(query), "value", block)
 	rows, err := db.DB.Query(query, block)
 	if err != nil {
@@ -396,21 +398,19 @@ func getUpsertParams(upsertQuery adapters.UpsertQuery, row types.EventDataRow) (
 
 		// build parameter list
 		if value, ok := row[colName]; ok {
-			//column found (not null)
+			// column found (not null)
 			containers[col.InsPosition] = sql.NullString{String: value, Valid: true}
 
-			//if column is not PK
+			// if column is not PK
 			if col.UpdPosition > 0 {
 				containers[col.UpdPosition] = sql.NullString{String: value, Valid: true}
 			}
-
 		} else if col.UpdPosition > 0 {
-			//column not found and is not PK (null)
+			// column not found and is not PK (null)
 			containers[col.InsPosition].Valid = false
 			containers[col.UpdPosition].Valid = false
-
 		} else {
-			//column not found is PK
+			// column not found is PK
 			return nil, "", fmt.Errorf("error null primary key for column %s", colName)
 		}
 	}

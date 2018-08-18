@@ -35,8 +35,7 @@ func NewTestDB(t *testing.T) (*sqldb.SQLDB, func()) {
 	dbSchema := fmt.Sprintf("test_%s", randString(10))
 	log := logger.NewLogger("debug")
 
-	//TODO: implement also for SQLITE
-	db, err := sqldb.NewSQLDB("postgres", cfg.DBURL, dbSchema, log)
+	db, err := sqldb.NewSQLDB(cfg.DBAdapter, cfg.DBURL, dbSchema, log)
 	if err != nil {
 		t.Fatal()
 	}
