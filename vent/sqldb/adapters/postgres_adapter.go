@@ -273,7 +273,7 @@ func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string
 					ELSE c.column_name
 				END
 			) ColumnDescription,
-			COALESCE(c.character_maximum_length,0) ColumnLenght
+			COALESCE(c.character_maximum_length,0) ColumnLength
 		FROM
 			information_schema.columns AS c
 		LEFT OUTER JOIN

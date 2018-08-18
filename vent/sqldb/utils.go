@@ -186,11 +186,11 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 		var columnSQLType string
 		var columnIsPK bool
 		var columnDescription string
-		var columnLenght int
+		var columnLength int
 
 		var column types.SQLTableColumn
 
-		if err := rows.Scan(&columnName, &columnSQLType, &columnIsPK, &columnDescription, &columnLenght); err != nil {
+		if err := rows.Scan(&columnName, &columnSQLType, &columnIsPK, &columnDescription, &columnLength); err != nil {
 			db.Log.Debug("msg", "Error scanning table structure", "err", err)
 			return table, err
 		}
@@ -209,7 +209,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 		column.Primary = columnIsPK
 		column.Type = columnSQLType
 		if column.Type == types.SQLColumnTypeVarchar {
-			column.Length = columnLenght
+			column.Length = columnLength
 		} else {
 			column.Length = 0
 		}
