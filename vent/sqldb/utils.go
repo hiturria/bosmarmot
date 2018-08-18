@@ -69,10 +69,10 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 func (db *SQLDB) getLogTableDef() types.EventTables {
 	tables := make(types.EventTables)
 
-	serial, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeSerial)
-	timestamp, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeTimeStamp)
-	integer, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeInt)
-	varchar, _ := db.DBAdapter.SQLDataType(types.SQLColumnTypeVarchar)
+	serial, _ := db.DBAdapter.GetTypeMapping(types.SQLColumnTypeSerial)
+	timestamp, _ := db.DBAdapter.GetTypeMapping(types.SQLColumnTypeTimeStamp)
+	integer, _ := db.DBAdapter.GetTypeMapping(types.SQLColumnTypeInt)
+	varchar, _ := db.DBAdapter.GetTypeMapping(types.SQLColumnTypeVarchar)
 
 	logCol := make(map[string]types.SQLTableColumn)
 
@@ -199,7 +199,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 			return table, err
 		}
 
-		if _, err = db.DBAdapter.SQLDataType(columnSQLType); err != nil {
+		if _, err = db.DBAdapter.GetTypeMapping(columnSQLType); err != nil {
 			return table, err
 		}
 

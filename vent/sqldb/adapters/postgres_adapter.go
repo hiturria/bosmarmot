@@ -54,8 +54,8 @@ func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 	return db, err
 }
 
-// SQLDataType convert generic dataTypes to database dependent dataTypes
-func (adapter *PostgresAdapter) SQLDataType(sqlGenericType string) (string, error) {
+// GetTypeMapping convert generic dataTypes to database dependent dataTypes
+func (adapter *PostgresAdapter) GetTypeMapping(sqlGenericType string) (string, error) {
 	if sqlDataType, ok := sqlDataTypes[sqlGenericType]; ok {
 		return sqlDataType, nil
 	}
@@ -296,7 +296,7 @@ func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string
 
 // GetQueryAlterTable returns query for adding a new column to a table
 func (adapter *PostgresAdapter) GetAlterColumnQuery(tableName string, columnName string, sqlGenericType string) string {
-	sqlType, _ := adapter.SQLDataType(sqlGenericType)
+	sqlType, _ := adapter.GetTypeMapping(sqlGenericType)
 	return fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", adapter.Schema, tableName, tableName, sqlType)
 }
 
