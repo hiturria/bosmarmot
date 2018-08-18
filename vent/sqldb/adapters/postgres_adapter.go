@@ -236,8 +236,6 @@ func (adapter *PostgresAdapter) GetFindTableQuery(tableName string) string {
 
 // GetTableDefinitionQuery returns query with table structure
 func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string {
-	// TODO
-	//WHEN c.data_type='integer' AND is_nullable='NO' THEN 'SERIAL'
 
 	return fmt.Sprintf(`
 		WITH dsc AS (
@@ -274,7 +272,8 @@ func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string
 					WHEN TRIM(COALESCE(dsc.description, '')) <> '' THEN TRIM(COALESCE(dsc.description, ''))
 					ELSE c.column_name
 				END
-			) ColumnDescription
+			) ColumnDescription,
+			COALESCE(c.character_maximum_length,0) ColumnLenght
 		FROM
 			information_schema.columns AS c
 		LEFT OUTER JOIN
