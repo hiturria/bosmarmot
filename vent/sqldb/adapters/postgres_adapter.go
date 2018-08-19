@@ -71,13 +71,13 @@ func (adapter *PostgresAdapter) GetCreateTableQuery(tableName string, columns []
 
 	for _, tableColumn := range columns {
 		colName := Safe(tableColumn.Name)
-		colType := Safe(tableColumn.Type)
+		sqlType, _ := adapter.GetTypeMapping(tableColumn.Type)
 
 		if columnsDef != "" {
 			columnsDef += ", "
 		}
 
-		columnsDef += fmt.Sprintf("%s %s", colName, colType)
+		columnsDef += fmt.Sprintf("%s %s", colName, Safe(sqlType))
 
 		if tableColumn.Length > 0 {
 			columnsDef += fmt.Sprintf("(%v)", tableColumn.Length)
@@ -293,7 +293,7 @@ func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string
 	)
 }
 
-// GetQueryAlterTable returns query for adding a new column to a table
+// GetAlterColumnQuery returns query for adding a new column to a table
 func (adapter *PostgresAdapter) GetAlterColumnQuery(tableName string, columnName string, sqlGenericType string) string {
 	sqlType, _ := adapter.GetTypeMapping(sqlGenericType)
 	return fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", adapter.Schema, tableName, tableName, sqlType)
@@ -335,8 +335,7 @@ func (adapter *PostgresAdapter) GetInsertLogDetailQuery() string {
 	return fmt.Sprintf("INSERT INTO %s._bosmarmot_logdet (id, tblname, tblmap, registers) VALUES ($1, $2, $3, $4)", adapter.Schema)
 }
 
-//---------------------------------------------------------------------------------------------------------------------
-
+// ErrorIsDupSchema returns true if the error corresponds to a duplicated schema name in db
 func (adapter *PostgresAdapter) ErrorIsDupSchema(err error) bool {
 	if err, ok := err.(*pq.Error); ok {
 		if err.Code == errDupSchema {
@@ -346,6 +345,7 @@ func (adapter *PostgresAdapter) ErrorIsDupSchema(err error) bool {
 	return false
 }
 
+// ErrorIsDupColumn returns true if the error corresponds to a duplicated column name in db
 func (adapter *PostgresAdapter) ErrorIsDupColumn(err error) bool {
 	if err, ok := err.(*pq.Error); ok {
 		if err.Code == errDupColumn {
@@ -355,6 +355,7 @@ func (adapter *PostgresAdapter) ErrorIsDupColumn(err error) bool {
 	return false
 }
 
+// ErrorIsDupTable returns true if the error corresponds to a duplicated table name in db
 func (adapter *PostgresAdapter) ErrorIsDupTable(err error) bool {
 	if err, ok := err.(*pq.Error); ok {
 		if err.Code == errDupTable {
@@ -364,6 +365,7 @@ func (adapter *PostgresAdapter) ErrorIsDupTable(err error) bool {
 	return false
 }
 
+// ErrorIsInvalidType returns true if the error corresponds to an invalid column type in db
 func (adapter *PostgresAdapter) ErrorIsInvalidType(err error) bool {
 	if err, ok := err.(*pq.Error); ok {
 		if err.Code == errInvalidType {
@@ -373,6 +375,7 @@ func (adapter *PostgresAdapter) ErrorIsInvalidType(err error) bool {
 	return false
 }
 
+// ErrorIsUndefinedTable returns true if the error corresponds to undefined table in db
 func (adapter *PostgresAdapter) ErrorIsUndefinedTable(err error) bool {
 	if err, ok := err.(*pq.Error); ok {
 		if err.Code == errUndefinedTable {
@@ -382,6 +385,7 @@ func (adapter *PostgresAdapter) ErrorIsUndefinedTable(err error) bool {
 	return false
 }
 
+// ErrorIsUndefinedColumn returns true if the error corresponds to undefined column in db
 func (adapter *PostgresAdapter) ErrorIsUndefinedColumn(err error) bool {
 	if err, ok := err.(*pq.Error); ok {
 		if err.Code == errUndefinedColumn {
@@ -391,6 +395,7 @@ func (adapter *PostgresAdapter) ErrorIsUndefinedColumn(err error) bool {
 	return false
 }
 
+// ErrorIsSQL returns true if the error is SQL related
 func (adapter *PostgresAdapter) ErrorIsSQL(err error) bool {
 	if _, ok := err.(*pq.Error); ok {
 		return true

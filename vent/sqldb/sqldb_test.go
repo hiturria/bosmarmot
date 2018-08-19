@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/monax/bosmarmot/vent/sqldb"
 	"github.com/monax/bosmarmot/vent/sqlsol"
 	"github.com/monax/bosmarmot/vent/test"
 	"github.com/monax/bosmarmot/vent/types"
@@ -32,13 +33,14 @@ func TestSynchronizeDB(t *testing.T) {
 
 func TestSetBlock(t *testing.T) {
 	t.Run("successfully inserts a block", func(t *testing.T) {
-		str, dat := getBlock()
 
 		db, closeDB := test.NewTestDB(t)
 		defer closeDB()
 
 		errp := db.Ping()
 		require.NoError(t, errp)
+
+		str, dat := getBlock(db)
 
 		err := db.SetBlock(str, dat)
 		require.NoError(t, err)
@@ -77,7 +79,8 @@ func TestSetBlock(t *testing.T) {
 	})
 }
 
-func getBlock() (types.EventTables, types.EventData) {
+func getBlock(db *sqldb.SQLDB) (types.EventTables, types.EventData) {
+
 	//table 1
 	cols1 := make(map[string]types.SQLTableColumn)
 	cols1["ID"] = types.SQLTableColumn{Name: "test_id", Type: types.SQLColumnTypeInt, Primary: true, Order: 1}

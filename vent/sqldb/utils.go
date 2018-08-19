@@ -68,38 +68,32 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 // getLogTableDef returns log structures
 func (db *SQLDB) getLogTableDef() types.EventTables {
 	tables := make(types.EventTables)
-
-	serial, _ := db.DBAdapter.GetTypeMapping(types.SQLColumnTypeSerial)
-	timestamp, _ := db.DBAdapter.GetTypeMapping(types.SQLColumnTypeTimeStamp)
-	integer, _ := db.DBAdapter.GetTypeMapping(types.SQLColumnTypeInt)
-	varchar, _ := db.DBAdapter.GetTypeMapping(types.SQLColumnTypeVarchar)
-
 	logCol := make(map[string]types.SQLTableColumn)
 
 	logCol["id"] = types.SQLTableColumn{
 		Name:    "id",
-		Type:    serial,
+		Type:    types.SQLColumnTypeSerial,
 		Primary: true,
 		Order:   1,
 	}
 
 	logCol["timestamp"] = types.SQLTableColumn{
 		Name:    "timestamp",
-		Type:    timestamp,
+		Type:    types.SQLColumnTypeTimeStamp,
 		Primary: false,
 		Order:   2,
 	}
 
 	logCol["registers"] = types.SQLTableColumn{
 		Name:    "registers",
-		Type:    integer,
+		Type:    types.SQLColumnTypeInt,
 		Primary: false,
 		Order:   3,
 	}
 
 	logCol["height"] = types.SQLTableColumn{
 		Name:    "height",
-		Type:    varchar,
+		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
 		Order:   4,
@@ -114,14 +108,14 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 
 	detCol["id"] = types.SQLTableColumn{
 		Name:    "id",
-		Type:    integer,
+		Type:    types.SQLColumnTypeInt,
 		Primary: true,
 		Order:   1,
 	}
 
 	detCol["tableName"] = types.SQLTableColumn{
 		Name:    "tblname",
-		Type:    varchar,
+		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: true,
 		Order:   2,
@@ -129,7 +123,7 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 
 	detCol["tableMap"] = types.SQLTableColumn{
 		Name:    "tblmap",
-		Type:    varchar,
+		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: true,
 		Order:   3,
@@ -137,7 +131,7 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 
 	detCol["registers"] = types.SQLTableColumn{
 		Name:    "registers",
-		Type:    integer,
+		Type:    types.SQLColumnTypeInt,
 		Primary: false,
 		Order:   4,
 	}

@@ -2,11 +2,11 @@ package types
 
 // defined SQL column types
 const (
-	SQLColumnTypeBool      = "BOOLEAN"
-	SQLColumnTypeByteA     = "BYTEA"
-	SQLColumnTypeInt       = "INTEGER"
+	SQLColumnTypeBool      = "BOOL"
+	SQLColumnTypeByteA     = "BYTE"
+	SQLColumnTypeInt       = "INT"
 	SQLColumnTypeSerial    = "SERIAL"
-	SQLColumnTypeText      = "TEXT"
-	SQLColumnTypeVarchar   = "VARCHAR"
-	SQLColumnTypeTimeStamp = "TIMESTAMP"
+	SQLColumnTypeText      = "TXT"
+	SQLColumnTypeVarchar   = "VARC"
+	SQLColumnTypeTimeStamp = "TIME"
 )
