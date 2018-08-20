@@ -45,11 +45,11 @@ func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 }
 
 // TypeMapping convert generic dataTypes to database dependent dataTypes
-func (adapter *PostgresAdapter) TypeMapping(sqlGenericType types.SQLColumnType) (string, error) {
-	if sqlDataType, ok := sqlDataTypes[sqlGenericType]; ok {
+func (adapter *PostgresAdapter) TypeMapping(sqlColumnType types.SQLColumnType) (string, error) {
+	if sqlDataType, ok := sqlDataTypes[sqlColumnType]; ok {
 		return sqlDataType, nil
 	}
-	err := fmt.Errorf("datatype %v not recognized", sqlGenericType)
+	err := fmt.Errorf("datatype %v not recognized", sqlColumnType)
 	return "", err
 }
 
@@ -108,7 +108,6 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable) types.UpsertQu
 	i := 0
 
 	for _, tableColumn := range table.Columns {
-		isNum := isNumeric(tableColumn.Type)
 		cKey = 0
 		i++
 
@@ -132,7 +131,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable) types.UpsertQu
 		}
 
 		upsertQuery.Columns[tableColumn.Name] = types.UpsertColumn{
-			IsNumeric:   isNum,
+			IsNumeric:   tableColumn.Type.IsNumeric(),
 			InsPosition: i - 1,
 			UpdPosition: cKey,
 		}
@@ -271,8 +270,8 @@ func (adapter *PostgresAdapter) TableDefinitionQuery(tableName string) string {
 }
 
 // AlterColumnQuery returns a query for adding a new column to a table
-func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName string, sqlGenericType types.SQLColumnType) string {
-	sqlType, _ := adapter.TypeMapping(sqlGenericType)
+func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName string, sqlColumnType types.SQLColumnType) string {
+	sqlType, _ := adapter.TypeMapping(sqlColumnType)
 	return fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", adapter.Schema, tableName, tableName, sqlType)
 }
 
@@ -308,30 +307,25 @@ func (adapter *PostgresAdapter) InsertLogDetailQuery() string {
 }
 
 // ErrorEquals verify if an error is of a given SQL type
-func (adapter *PostgresAdapter) ErrorEquals(err error, sqlError types.SQLError) bool {
+func (adapter *PostgresAdapter) ErrorEquals(err error, sqlErrorType types.SQLErrorType) bool {
 	if err, ok := err.(*pq.Error); ok {
-		switch sqlError {
-		case types.ErrGenericSQL:
+		switch sqlErrorType {
+		case types.SQLErrorTypeGeneric:
 			return true
-		case types.ErrDuplicatedColumn:
+		case types.SQLErrorTypeDuplicatedColumn:
 			return err.Code == "42701"
-		case types.ErrDuplicatedTable:
+		case types.SQLErrorTypeDuplicatedTable:
 			return err.Code == "42P07"
-		case types.ErrDuplicatedSchema:
+		case types.SQLErrorTypeDuplicatedSchema:
 			return err.Code == "42P06"
-		case types.ErrUndefinedTable:
+		case types.SQLErrorTypeUndefinedTable:
 			return err.Code == "42P01"
-		case types.ErrUndefinedColumn:
+		case types.SQLErrorTypeUndefinedColumn:
 			return err.Code == "42703"
-		case types.ErrInvalidType:
+		case types.SQLErrorTypeInvalidType:
 			return err.Code == "42704"
 		}
 	}
 
 	return false
-}
-
-// isNumeric determines if a dataType is numeric
-func isNumeric(dataType types.SQLColumnType) bool {
-	return dataType == types.SQLColumnTypeInt || dataType == types.SQLColumnTypeSerial
 }

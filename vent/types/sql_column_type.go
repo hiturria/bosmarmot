@@ -13,3 +13,8 @@ const (
 	SQLColumnTypeVarchar
 	SQLColumnTypeTimeStamp
 )
+
+// IsNumeric determines if an sqlColumnType is numeric
+func (sqlColumnType SQLColumnType) IsNumeric() bool {
+	return sqlColumnType == SQLColumnTypeInt || sqlColumnType == SQLColumnTypeSerial
+}

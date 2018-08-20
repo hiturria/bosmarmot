@@ -1,15 +1,15 @@
 package types
 
-// SQLError to store generic SQL error types
-type SQLError int
+// SQLErrorType stores generic SQL error types
+type SQLErrorType int
 
-// generic SQL errors
+// generic SQL error types
 const (
-	ErrDuplicatedSchema SQLError = iota
-	ErrDuplicatedColumn
-	ErrDuplicatedTable
-	ErrInvalidType
-	ErrUndefinedTable
-	ErrUndefinedColumn
-	ErrGenericSQL
+	SQLErrorTypeDuplicatedSchema SQLErrorType = iota
+	SQLErrorTypeDuplicatedColumn
+	SQLErrorTypeDuplicatedTable
+	SQLErrorTypeInvalidType
+	SQLErrorTypeUndefinedTable
+	SQLErrorTypeUndefinedColumn
+	SQLErrorTypeGeneric
 )
