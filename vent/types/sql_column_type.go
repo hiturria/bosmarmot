@@ -1,12 +1,15 @@
 package types
 
-// defined SQL column types
+// SQLColumnType to store generic SQL column types
+type SQLColumnType int
+
+// generic SQL column types
 const (
-	SQLColumnTypeBool      = "BOOL"
-	SQLColumnTypeByteA     = "BYTE"
-	SQLColumnTypeInt       = "INT"
-	SQLColumnTypeSerial    = "SERIAL"
-	SQLColumnTypeText      = "TXT"
-	SQLColumnTypeVarchar   = "VARC"
-	SQLColumnTypeTimeStamp = "TIME"
+	SQLColumnTypeBool SQLColumnType = iota
+	SQLColumnTypeByteA
+	SQLColumnTypeInt
+	SQLColumnTypeSerial
+	SQLColumnTypeText
+	SQLColumnTypeVarchar
+	SQLColumnTypeTimeStamp
 )

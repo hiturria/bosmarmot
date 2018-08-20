@@ -6,6 +6,7 @@ import (
 
 	"github.com/monax/bosmarmot/vent/sqlsol"
 	"github.com/monax/bosmarmot/vent/test"
+	"github.com/monax/bosmarmot/vent/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,26 +42,26 @@ func TestNewParser(t *testing.T) {
 		col, err := tableStruct.GetColumn("UpdateUserAccount", "userName")
 		require.NoError(t, err)
 		require.Equal(t, false, col.Primary)
-		require.Equal(t, "TXT", col.Type)
+		require.Equal(t, types.SQLColumnTypeText, col.Type)
 		require.Equal(t, "username", col.Name)
 
 		col, err = tableStruct.GetColumn("UpdateUserAccount", "userAddress")
 		require.NoError(t, err)
 		require.Equal(t, true, col.Primary)
-		require.Equal(t, "VARC", col.Type)
+		require.Equal(t, types.SQLColumnTypeVarchar, col.Type)
 		require.Equal(t, "address", col.Name)
 
 		col, err = tableStruct.GetColumn("UpdateUserAccount", "index")
 		require.NoError(t, err)
 		require.Equal(t, false, col.Primary)
-		require.Equal(t, "INT", col.Type)
+		require.Equal(t, types.SQLColumnTypeInt, col.Type)
 		require.Equal(t, "index", col.Name)
 		require.Equal(t, 3, col.Order)
 
 		col, err = tableStruct.GetColumn("UpdateUserAccount", "height")
 		require.NoError(t, err)
 		require.Equal(t, false, col.Primary)
-		require.Equal(t, "VARC", col.Type)
+		require.Equal(t, types.SQLColumnTypeVarchar, col.Type)
 		require.Equal(t, "height", col.Name)
 		require.Equal(t, 1, col.Order)
 	})
@@ -128,7 +129,7 @@ func TestGetColumn(t *testing.T) {
 		column, err := tableStruct.GetColumn("TEST_EVENTS", "description")
 		require.NoError(t, err)
 		require.Equal(t, strings.ToLower("testdescription"), column.Name)
-		require.Equal(t, "TXT", column.Type)
+		require.Equal(t, types.SQLColumnTypeText, column.Type)
 		require.Equal(t, false, column.Primary)
 	})
 

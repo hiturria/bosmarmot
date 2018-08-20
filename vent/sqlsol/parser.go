@@ -140,7 +140,7 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 
 // getSQLType maps event input types with corresponding
 // SQL column types
-func getSQLType(eventInputType string) (string, int, error) {
+func getSQLType(eventInputType string) (types.SQLColumnType, int, error) {
 	switch strings.ToLower(eventInputType) {
 	case types.EventInputTypeInt, types.EventInputTypeUInt:
 		return types.SQLColumnTypeInt, 0, nil
@@ -151,7 +151,7 @@ func getSQLType(eventInputType string) (string, int, error) {
 	case types.EventInputTypeString:
 		return types.SQLColumnTypeText, 0, nil
 	default:
-		return "", 0, fmt.Errorf("getSQLType: don't know how to map eventInputType: %s ", eventInputType)
+		return 0, 0, fmt.Errorf("getSQLType: don't know how to map eventInputType: %s ", eventInputType)
 	}
 }
 

@@ -10,7 +10,7 @@ type SQLTable struct {
 // the Order is given to be able to sort the columns to be created
 type SQLTableColumn struct {
 	Name    string
-	Type    string
+	Type    SQLColumnType
 	Length  int
 	Primary bool
 	Order   int

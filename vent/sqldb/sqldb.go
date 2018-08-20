@@ -28,7 +28,7 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 
 	switch dbAdapter {
 	case "postgres":
-		db.DBAdapter = adapters.NewPostgresAdapter(adapters.Safe(schema), log)
+		db.DBAdapter = adapters.NewPostgresAdapter(safe(schema), log)
 	default:
 		return nil, errors.New("Invalid database adapter")
 	}
@@ -84,10 +84,10 @@ func (db *SQLDB) Ping() error {
 
 // GetLastBlockID returns last inserted blockId from log table
 func (db *SQLDB) GetLastBlockID() (string, error) {
-	query := db.DBAdapter.GetLastBlockIDQuery()
+	query := db.DBAdapter.LastBlockIDQuery()
 	id := ""
 
-	db.Log.Debug("msg", "MAX ID", "query", adapters.Clean(query))
+	db.Log.Debug("msg", "MAX ID", "query", clean(query))
 
 	if err := db.DB.QueryRow(query).Scan(&id); err != nil {
 		db.Log.Debug("msg", "Error selecting last block id", "err", err)
@@ -107,7 +107,7 @@ func (db *SQLDB) DestroySchema() error {
 	}
 
 	if found {
-		query := db.DBAdapter.GetDropSchemaQuery()
+		query := db.DBAdapter.DropSchemaQuery()
 
 		db.Log.Info("msg", "Drop schema", "query", query)
 
@@ -161,9 +161,9 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	// insert into log tables
 	id := 0
 	length := len(eventTables)
-	query := db.DBAdapter.GetInsertLogQuery()
+	query := db.DBAdapter.InsertLogQuery()
 
-	db.Log.Debug("msg", "INSERT LOG", "query", adapters.Clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
+	db.Log.Debug("msg", "INSERT LOG", "query", clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
 	err = tx.QueryRow(query, length, eventData.Block).Scan(&id)
 	if err != nil {
 		db.Log.Debug("msg", "Error inserting into _bosmarmot_log", "err", err)
@@ -171,7 +171,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 	// prepare log detail statement
-	logQuery := db.DBAdapter.GetInsertLogDetailQuery()
+	logQuery := db.DBAdapter.InsertLogDetailQuery()
 	logStmt, err = tx.Prepare(logQuery)
 	if err != nil {
 		db.Log.Debug("msg", "Error preparing log stmt", "err", err)
@@ -181,7 +181,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 loop:
 	// for each table in the block
 	for tblMap, table := range eventTables {
-		safeTable = adapters.Safe(table.Name)
+		safeTable = safe(table.Name)
 
 		// insert in logdet table
 		dataRows := eventData.Tables[table.Name]
@@ -194,7 +194,7 @@ loop:
 		}
 
 		// get table upsert query
-		uQuery := db.DBAdapter.GetUpsertQuery(table)
+		uQuery := db.DBAdapter.UpsertQuery(table)
 
 		// for Each Row
 		for _, row := range dataRows {
@@ -206,7 +206,7 @@ loop:
 			}
 
 			// upsert row data
-			db.Log.Debug("msg", "UPSERT", "query", adapters.Clean(uQuery.Query), "value", value)
+			db.Log.Debug("msg", "UPSERT", "query", clean(uQuery.Query), "value", value)
 			_, err = tx.Exec(uQuery.Query, pointers...)
 			if err != nil {
 				db.Log.Debug("msg", "Error Upserting", "err", err)
@@ -290,7 +290,7 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 			return data, err
 		}
 
-		db.Log.Debug("msg", "Query table data", "query", adapters.Clean(query))
+		db.Log.Debug("msg", "Query table data", "query", clean(query))
 		rows, err := db.DB.Query(query)
 		if err != nil {
 			db.Log.Debug("msg", "Error querying table data", "err", err)

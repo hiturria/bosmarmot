@@ -9,7 +9,7 @@ import (
 	"github.com/monax/bosmarmot/vent/types"
 )
 
-var sqlDataTypes = map[string]string{
+var sqlDataTypes = map[types.SQLColumnType]string{
 	types.SQLColumnTypeBool:      "BOOLEAN",
 	types.SQLColumnTypeByteA:     "BYTEA",
 	types.SQLColumnTypeInt:       "INTEGER",
@@ -44,30 +44,29 @@ func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 	return db, err
 }
 
-// GetTypeMapping convert generic dataTypes to database dependent dataTypes
-func (adapter *PostgresAdapter) GetTypeMapping(sqlGenericType string) (string, error) {
+// TypeMapping convert generic dataTypes to database dependent dataTypes
+func (adapter *PostgresAdapter) TypeMapping(sqlGenericType types.SQLColumnType) (string, error) {
 	if sqlDataType, ok := sqlDataTypes[sqlGenericType]; ok {
 		return sqlDataType, nil
 	}
-	err := fmt.Errorf("datatype %s not recognized", sqlGenericType)
+	err := fmt.Errorf("datatype %v not recognized", sqlGenericType)
 	return "", err
 }
 
-// GetCreateTableQuery builds query for creating a new table
-func (adapter *PostgresAdapter) GetCreateTableQuery(tableName string, columns []types.SQLTableColumn) string {
+// CreateTableQuery builds query for creating a new table
+func (adapter *PostgresAdapter) CreateTableQuery(tableName string, columns []types.SQLTableColumn) string {
 	// build query
 	columnsDef := ""
 	primaryKey := ""
 
 	for _, tableColumn := range columns {
-		colName := Safe(tableColumn.Name)
-		sqlType, _ := adapter.GetTypeMapping(tableColumn.Type)
+		sqlType, _ := adapter.TypeMapping(tableColumn.Type)
 
 		if columnsDef != "" {
 			columnsDef += ", "
 		}
 
-		columnsDef += fmt.Sprintf("%s %s", colName, Safe(sqlType))
+		columnsDef += fmt.Sprintf("%s %s", tableColumn.Name, sqlType)
 
 		if tableColumn.Length > 0 {
 			columnsDef += fmt.Sprintf("(%v)", tableColumn.Length)
@@ -78,7 +77,7 @@ func (adapter *PostgresAdapter) GetCreateTableQuery(tableName string, columns []
 			if primaryKey != "" {
 				primaryKey += ", "
 			}
-			primaryKey += colName
+			primaryKey += tableColumn.Name
 		}
 	}
 
@@ -91,8 +90,8 @@ func (adapter *PostgresAdapter) GetCreateTableQuery(tableName string, columns []
 	return query
 }
 
-// GetUpsertQuery builds a query for upserting rows
-func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) types.UpsertQuery {
+// UpsertQuery builds a query for upserting rows
+func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable) types.UpsertQuery {
 	columns := ""
 	insValues := ""
 	updValues := ""
@@ -109,8 +108,7 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) types.Upser
 	i := 0
 
 	for _, tableColumn := range table.Columns {
-		isNum := IsNumeric(tableColumn.Type)
-		safeCol := Safe(tableColumn.Name)
+		isNum := isNumeric(tableColumn.Type)
 		cKey = 0
 		i++
 
@@ -119,7 +117,7 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) types.Upser
 			columns += ", "
 			insValues += ", "
 		}
-		columns += safeCol
+		columns += tableColumn.Name
 		insValues += "$" + fmt.Sprintf("%d", i)
 
 		if !tableColumn.Primary {
@@ -130,10 +128,10 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) types.Upser
 			if updValues != "" {
 				updValues += ", "
 			}
-			updValues += safeCol + " = $" + fmt.Sprintf("%d", cKey+1)
+			updValues += tableColumn.Name + " = $" + fmt.Sprintf("%d", cKey+1)
 		}
 
-		upsertQuery.Columns[safeCol] = types.UpsertColumn{
+		upsertQuery.Columns[tableColumn.Name] = types.UpsertColumn{
 			IsNumeric:   isNum,
 			InsPosition: i - 1,
 			UpdPosition: cKey,
@@ -141,14 +139,13 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) types.Upser
 	}
 	upsertQuery.Length = cols + nKeys
 
-	safeTable := Safe(table.Name)
-	query := fmt.Sprintf("INSERT INTO %s.%s (%s) VALUES (%s) ", adapter.Schema, safeTable, columns, insValues)
+	query := fmt.Sprintf("INSERT INTO %s.%s (%s) VALUES (%s) ", adapter.Schema, table.Name, columns, insValues)
 
 	if nKeys != 0 {
-		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO UPDATE SET ", safeTable)
+		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO UPDATE SET ", table.Name)
 		query += updValues
 	} else {
-		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO NOTHING", safeTable)
+		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO NOTHING", table.Name)
 	}
 	query += ";"
 
@@ -156,8 +153,8 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) types.Upser
 	return upsertQuery
 }
 
-// GetLastBlockIDQuery returns a query for last inserted blockId in log table
-func (adapter *PostgresAdapter) GetLastBlockIDQuery() string {
+// LastBlockIDQuery returns a query for last inserted blockId in log table
+func (adapter *PostgresAdapter) LastBlockIDQuery() string {
 	query := `
 		WITH ll AS (
 			SELECT
@@ -175,8 +172,8 @@ func (adapter *PostgresAdapter) GetLastBlockIDQuery() string {
 	return fmt.Sprintf(query, adapter.Schema, adapter.Schema)
 }
 
-// GetFindSchemaQuery returns a query that checks if the default schema exists
-func (adapter *PostgresAdapter) GetFindSchemaQuery() string {
+// FindSchemaQuery returns a query that checks if the default schema exists
+func (adapter *PostgresAdapter) FindSchemaQuery() string {
 	query := `
 		SELECT
 			EXISTS (
@@ -192,18 +189,18 @@ func (adapter *PostgresAdapter) GetFindSchemaQuery() string {
 	return fmt.Sprintf(query, adapter.Schema)
 }
 
-// GetCreateSchemaQuery returns a query that creates a PostgreSQL schema
-func (adapter *PostgresAdapter) GetCreateSchemaQuery() string {
+// CreateSchemaQuery returns a query that creates a PostgreSQL schema
+func (adapter *PostgresAdapter) CreateSchemaQuery() string {
 	return fmt.Sprintf("CREATE SCHEMA %s;", adapter.Schema)
 }
 
-// GetDropSchemaQuery returns a query that drops a PostgreSQL schema
-func (adapter *PostgresAdapter) GetDropSchemaQuery() string {
+// DropSchemaQuery returns a query that drops a PostgreSQL schema
+func (adapter *PostgresAdapter) DropSchemaQuery() string {
 	return fmt.Sprintf("DROP SCHEMA %s CASCADE;", adapter.Schema)
 }
 
-// GetFindTableQuery returns a query that checks if a table exists
-func (adapter *PostgresAdapter) GetFindTableQuery(tableName string) string {
+// FindTableQuery returns a query that checks if a table exists
+func (adapter *PostgresAdapter) FindTableQuery(tableName string) string {
 	query := `
 		SELECT
 			EXISTS (
@@ -222,15 +219,14 @@ func (adapter *PostgresAdapter) GetFindTableQuery(tableName string) string {
 	return fmt.Sprintf(query, adapter.Schema, tableName)
 }
 
-// GetTableDefinitionQuery returns a query with table structure
-func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string {
+// TableDefinitionQuery returns a query with table structure
+func (adapter *PostgresAdapter) TableDefinitionQuery(tableName string) string {
 	return fmt.Sprintf(`
 		WITH dsc AS (
 			SELECT
 				pgd.objsubid,
 				st.schemaname,
-				st.relname,
-				pgd.description
+				st.relname
 			FROM
 				pg_catalog.pg_statio_all_tables AS st
 				INNER JOIN pg_catalog.pg_description pgd ON (pgd.objoid = st.relid)
@@ -239,13 +235,13 @@ func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string
 			c.column_name ColumnName,
 			(
 				CASE
-					WHEN c.data_type = 'integer' THEN '%s'
-					WHEN c.data_type = 'boolean' THEN '%s'
-					WHEN c.data_type = 'bytea' THEN '%s'
-					WHEN c.data_type = 'text' THEN '%s'
-					WHEN c.udt_name = 'timestamp' THEN '%s'
-					WHEN c.udt_name = 'varchar' THEN '%s'
-					ELSE CONCAT(c.data_type, ' - ', c.udt_name, '(', COALESCE(c.character_maximum_length, 0), ')')
+					WHEN c.data_type = 'integer' THEN %v
+					WHEN c.data_type = 'boolean' THEN %v
+					WHEN c.data_type = 'bytea' THEN %v
+					WHEN c.data_type = 'text' THEN %v
+					WHEN c.udt_name = 'timestamp' THEN %v
+					WHEN c.udt_name = 'varchar' THEN %v
+					ELSE 0
 				END
 			) ColumnSQLType,
 			(
@@ -254,12 +250,6 @@ func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string
 					ELSE false
 				END
 			) ColumnIsPK,
-			(
-				CASE
-					WHEN TRIM(COALESCE(dsc.description, '')) <> '' THEN TRIM(COALESCE(dsc.description, ''))
-					ELSE c.column_name
-				END
-			) ColumnDescription,
 			COALESCE(c.character_maximum_length,0) ColumnLength
 		FROM
 			information_schema.columns AS c
@@ -280,19 +270,19 @@ func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string
 	)
 }
 
-// GetAlterColumnQuery returns a query for adding a new column to a table
-func (adapter *PostgresAdapter) GetAlterColumnQuery(tableName string, columnName string, sqlGenericType string) string {
-	sqlType, _ := adapter.GetTypeMapping(sqlGenericType)
+// AlterColumnQuery returns a query for adding a new column to a table
+func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName string, sqlGenericType types.SQLColumnType) string {
+	sqlType, _ := adapter.TypeMapping(sqlGenericType)
 	return fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", adapter.Schema, tableName, tableName, sqlType)
 }
 
-// GetSelectRowQuery returns a query for selecting row values
-func (adapter *PostgresAdapter) GetSelectRowQuery(tableName string, fields string, indexValue string) string {
+// SelectRowQuery returns a query for selecting row values
+func (adapter *PostgresAdapter) SelectRowQuery(tableName string, fields string, indexValue string) string {
 	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE height='%s';", fields, adapter.Schema, tableName, indexValue)
 }
 
-// GetSelectLogQuery returns a query for selecting all tables involved in a block trn
-func (adapter *PostgresAdapter) GetSelectLogQuery() string {
+// SelectLogQuery returns a query for selecting all tables involved in a block trn
+func (adapter *PostgresAdapter) SelectLogQuery() string {
 	query := `
 		SELECT
 			tblname,
@@ -307,13 +297,13 @@ func (adapter *PostgresAdapter) GetSelectLogQuery() string {
 	return query
 }
 
-// GetInsertLogQuery returns a query to insert a row in log table
-func (adapter *PostgresAdapter) GetInsertLogQuery() string {
+// InsertLogQuery returns a query to insert a row in log table
+func (adapter *PostgresAdapter) InsertLogQuery() string {
 	return fmt.Sprintf("INSERT INTO %s._bosmarmot_log (timestamp, registers, height) VALUES (CURRENT_TIMESTAMP, $1, $2) RETURNING id", adapter.Schema)
 }
 
-// GetInsertLogDetailQuery returns a query to insert a row into logdetail table
-func (adapter *PostgresAdapter) GetInsertLogDetailQuery() string {
+// InsertLogDetailQuery returns a query to insert a row into logdetail table
+func (adapter *PostgresAdapter) InsertLogDetailQuery() string {
 	return fmt.Sprintf("INSERT INTO %s._bosmarmot_logdet (id, tblname, tblmap, registers) VALUES ($1, $2, $3, $4)", adapter.Schema)
 }
 
@@ -339,4 +329,9 @@ func (adapter *PostgresAdapter) ErrorEquals(err error, sqlError types.SQLError) 
 	}
 
 	return false
+}
+
+// isNumeric determines if a datatype is numeric
+func isNumeric(dataType types.SQLColumnType) bool {
+	return dataType == types.SQLColumnTypeInt || dataType == types.SQLColumnTypeSerial
 }
