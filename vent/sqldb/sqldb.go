@@ -230,9 +230,9 @@ loop:
 			return errRb
 		}
 
-		if db.DBAdapter.ErrorIsSQL(err) {
+		if db.DBAdapter.ErrorEquals(err,types.ErrGenericSQL) {
 			// table does not exists
-			if db.DBAdapter.ErrorIsUndefinedTable(err) {
+			if db.DBAdapter.ErrorEquals(err,types.ErrUndefinedTable) {
 				db.Log.Warn("msg", "Table not found", "value", safeTable)
 				if err = db.SynchronizeDB(eventTables); err != nil {
 					return err
@@ -241,7 +241,7 @@ loop:
 			}
 
 			// columns do not match
-			if db.DBAdapter.ErrorIsUndefinedColumn(err) {
+			if db.DBAdapter.ErrorEquals(err,types.ErrUndefinedColumn) {
 				db.Log.Warn("msg", "Column not found", "value", safeTable)
 				if err = db.SynchronizeDB(eventTables); err != nil {
 					return err

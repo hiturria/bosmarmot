@@ -10,7 +10,7 @@ import (
 // DBAdapter database access interface
 type DBAdapter interface {
 	Open(dbURL string) (*sql.DB, error)
-	GetTypeMapping(string) (string, error)
+	GetTypeMapping(sqlGenericType string) (string, error)
 	GetCreateTableQuery(tableName string, columns []types.SQLTableColumn) string
 	GetUpsertQuery(table types.SQLTable) adapters.UpsertQuery
 	GetLastBlockIDQuery() string
@@ -24,13 +24,5 @@ type DBAdapter interface {
 	GetSelectLogQuery() string
 	GetInsertLogQuery() string
 	GetInsertLogDetailQuery() string
-
-	// TODO: generalize error management (similar to what we are doing with the types)
-	ErrorIsDupSchema(error) bool
-	ErrorIsDupColumn(error) bool
-	ErrorIsDupTable(error) bool
-	ErrorIsInvalidType(error) bool
-	ErrorIsUndefinedTable(err error) bool
-	ErrorIsUndefinedColumn(err error) bool
-	ErrorIsSQL(err error) bool
+	ErrorEquals(err error, SQLError string) bool
 }

@@ -166,8 +166,6 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) UpsertQuery
 	return upsertQuery
 }
 
-//--------------------------------------------------------------------------------------------------------------------
-
 // GetLastBlockIDQuery returns query for last inserted blockId in log table
 func (adapter *PostgresAdapter) GetLastBlockIDQuery() string {
 	query := `
@@ -329,70 +327,45 @@ func (adapter *PostgresAdapter) GetInsertLogDetailQuery() string {
 	return fmt.Sprintf("INSERT INTO %s._bosmarmot_logdet (id, tblname, tblmap, registers) VALUES ($1, $2, $3, $4)", adapter.Schema)
 }
 
-// ErrorIsDupSchema returns true if the error corresponds to a duplicated schema name in db
-func (adapter *PostgresAdapter) ErrorIsDupSchema(err error) bool {
+// ErrorEquals verify if an error is off a determined SQL type
+func (adapter *PostgresAdapter) ErrorEquals(err error, SQLError string) bool {
 	if err, ok := err.(*pq.Error); ok {
-		if err.Code == errDupSchema {
+		switch SQLError {
+		case types.ErrGenericSQL:
 			return true
+
+		case types.ErrDupColumn:
+			if err.Code == errDupColumn {
+				return true
+			}
+
+		case types.ErrDupTable:
+			if err.Code == errDupTable {
+				return true
+			}
+
+		case types.ErrDupSchema:
+			if err.Code == errDupSchema {
+				return true
+			}
+
+		case types.ErrUndefinedTable:
+			if err.Code == errUndefinedTable {
+				return true
+			}
+
+		case types.ErrUndefinedColumn:
+			if err.Code == errUndefinedColumn {
+				return true
+			}
+
+		case types.ErrInvalidType:
+			if err.Code == errInvalidType {
+				return true
+			}
+
 		}
 	}
-	return false
-}
 
-// ErrorIsDupColumn returns true if the error corresponds to a duplicated column name in db
-func (adapter *PostgresAdapter) ErrorIsDupColumn(err error) bool {
-	if err, ok := err.(*pq.Error); ok {
-		if err.Code == errDupColumn {
-			return true
-		}
-	}
-	return false
-}
-
-// ErrorIsDupTable returns true if the error corresponds to a duplicated table name in db
-func (adapter *PostgresAdapter) ErrorIsDupTable(err error) bool {
-	if err, ok := err.(*pq.Error); ok {
-		if err.Code == errDupTable {
-			return true
-		}
-	}
-	return false
-}
-
-// ErrorIsInvalidType returns true if the error corresponds to an invalid column type in db
-func (adapter *PostgresAdapter) ErrorIsInvalidType(err error) bool {
-	if err, ok := err.(*pq.Error); ok {
-		if err.Code == errInvalidType {
-			return true
-		}
-	}
-	return false
-}
-
-// ErrorIsUndefinedTable returns true if the error corresponds to undefined table in db
-func (adapter *PostgresAdapter) ErrorIsUndefinedTable(err error) bool {
-	if err, ok := err.(*pq.Error); ok {
-		if err.Code == errUndefinedTable {
-			return true
-		}
-	}
-	return false
-}
-
-// ErrorIsUndefinedColumn returns true if the error corresponds to undefined column in db
-func (adapter *PostgresAdapter) ErrorIsUndefinedColumn(err error) bool {
-	if err, ok := err.(*pq.Error); ok {
-		if err.Code == errUndefinedColumn {
-			return true
-		}
-	}
-	return false
-}
-
-// ErrorIsSQL returns true if the error is SQL related
-func (adapter *PostgresAdapter) ErrorIsSQL(err error) bool {
-	if _, ok := err.(*pq.Error); ok {
-		return true
-	}
 	return false
 }
