@@ -9,16 +9,6 @@ import (
 	"github.com/monax/bosmarmot/vent/types"
 )
 
-// PostgreSQL specific error codes
-const (
-	errDupSchema       = "42P06"
-	errDupColumn       = "42701"
-	errDupTable        = "42P07"
-	errInvalidType     = "42704"
-	errUndefinedTable  = "42P01"
-	errUndefinedColumn = "42703"
-)
-
 var sqlDataTypes = map[string]string{
 	types.SQLColumnTypeBool:      "BOOLEAN",
 	types.SQLColumnTypeByteA:     "BYTEA",
@@ -328,42 +318,23 @@ func (adapter *PostgresAdapter) GetInsertLogDetailQuery() string {
 }
 
 // ErrorEquals verify if an error is of a given SQL type
-func (adapter *PostgresAdapter) ErrorEquals(err error, SQLError string) bool {
+func (adapter *PostgresAdapter) ErrorEquals(err error, sqlError types.SQLError) bool {
 	if err, ok := err.(*pq.Error); ok {
-		switch SQLError {
+		switch sqlError {
 		case types.ErrGenericSQL:
 			return true
-
-		case types.ErrDupColumn:
-			if err.Code == errDupColumn {
-				return true
-			}
-
-		case types.ErrDupTable:
-			if err.Code == errDupTable {
-				return true
-			}
-
-		case types.ErrDupSchema:
-			if err.Code == errDupSchema {
-				return true
-			}
-
+		case types.ErrDuplicatedColumn:
+			return err.Code == "42701"
+		case types.ErrDuplicatedTable:
+			return err.Code == "42P07"
+		case types.ErrDuplicatedSchema:
+			return err.Code == "42P06"
 		case types.ErrUndefinedTable:
-			if err.Code == errUndefinedTable {
-				return true
-			}
-
+			return err.Code == "42P01"
 		case types.ErrUndefinedColumn:
-			if err.Code == errUndefinedColumn {
-				return true
-			}
-
+			return err.Code == "42703"
 		case types.ErrInvalidType:
-			if err.Code == errInvalidType {
-				return true
-			}
-
+			return err.Code == "42704"
 		}
 	}
 

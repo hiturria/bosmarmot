@@ -23,5 +23,5 @@ type DBAdapter interface {
 	GetSelectLogQuery() string
 	GetInsertLogQuery() string
 	GetInsertLogDetailQuery() string
-	ErrorEquals(err error, SQLError string) bool
+	ErrorEquals(err error, sqlError types.SQLError) bool
 }
