@@ -1,4 +1,5 @@
-## Vent component
+# Vent component
+
 Vent reads an event configuration file, parses its contents and maps column types to corresponding PostgreSQL types to synchronize database structures.
 Database structures are created or modified (just adding new columns is supported).
 Then listens to burrow gRPC events, parses data and builds rows to be upserted in corresponding event tables.
