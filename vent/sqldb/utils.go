@@ -228,13 +228,13 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 	}
 
 	// for each column in the new table structure
-	for comment, newColumn := range newTable.Columns {
+	for _, newColumn := range newTable.Columns {
 		found := false
 
 		// check if exists in the current table structure
 		for _, currentColumn := range currentTable.Columns {
+			// if column exists
 			if currentColumn.Name == newColumn.Name {
-				//if exists
 				found = true
 				break
 			}
@@ -254,24 +254,6 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 					return err
 				}
 			}
-
-			if err = db.commentColumn(safeTable, safeCol, comment); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-//commentColumn add a comment to a database column
-func (db *SQLDB) commentColumn(tableName string, columnName string, comment string) error {
-	query := db.DBAdapter.GetCommentColumnQuery(tableName, columnName, comment)
-	if query != "" {
-		db.Log.Debug("msg", "COMMENT COLUMN", "query", adapters.Clean(query))
-		_, err := db.DB.Exec(query)
-		if err != nil {
-			db.Log.Debug("msg", "Error commenting column", "err", err)
-			return err
 		}
 	}
 	return nil
@@ -304,7 +286,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 
 	safeTable := adapters.Safe(table.Name)
 
-	// sort columns and create comments
+	// sort columns
 	sortedColumns := make([]types.SQLTableColumn, len(table.Columns))
 	for _, tableColumn := range table.Columns {
 		sortedColumns[tableColumn.Order-1] = tableColumn
@@ -330,14 +312,6 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 		}
 		db.Log.Debug("msg", "Error creating table", "err", err)
 		return err
-	}
-
-	// comment on table and columns
-	for comment, tableColumn := range table.Columns {
-		db.commentColumn(safeTable, adapters.Safe(tableColumn.Name), comment)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

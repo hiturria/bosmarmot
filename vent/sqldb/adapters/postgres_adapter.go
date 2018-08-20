@@ -299,11 +299,6 @@ func (adapter *PostgresAdapter) GetAlterColumnQuery(tableName string, columnName
 	return fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", adapter.Schema, tableName, tableName, sqlType)
 }
 
-// GetCommentColumnQuery returns query for commenting a column
-func (adapter *PostgresAdapter) GetCommentColumnQuery(tableName string, columnName string, comment string) string {
-	return fmt.Sprintf("COMMENT ON COLUMN %s.%s.%s IS '%s';", adapter.Schema, tableName, columnName, comment)
-}
-
 // GetSelectRowQuery returns query for selecting row values
 func (adapter *PostgresAdapter) GetSelectRowQuery(tableName string, fields string, indexValue string) string {
 	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE height='%s';", fields, adapter.Schema, tableName, indexValue)

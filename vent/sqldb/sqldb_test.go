@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/monax/bosmarmot/vent/sqldb"
 	"github.com/monax/bosmarmot/vent/sqlsol"
 	"github.com/monax/bosmarmot/vent/test"
 	"github.com/monax/bosmarmot/vent/types"
@@ -40,7 +39,7 @@ func TestSetBlock(t *testing.T) {
 		errp := db.Ping()
 		require.NoError(t, errp)
 
-		str, dat := getBlock(db)
+		str, dat := getBlock()
 
 		err := db.SetBlock(str, dat)
 		require.NoError(t, err)
@@ -79,7 +78,7 @@ func TestSetBlock(t *testing.T) {
 	})
 }
 
-func getBlock(db *sqldb.SQLDB) (types.EventTables, types.EventData) {
+func getBlock() (types.EventTables, types.EventData) {
 
 	//table 1
 	cols1 := make(map[string]types.SQLTableColumn)

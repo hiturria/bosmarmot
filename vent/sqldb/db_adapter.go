@@ -20,7 +20,6 @@ type DBAdapter interface {
 	GetFindTableQuery(tableName string) string
 	GetTableDefinitionQuery(tableName string) string
 	GetAlterColumnQuery(tableName string, columnName string, sqlGenericType string) string
-	GetCommentColumnQuery(tableName string, columnName string, comment string) string
 	GetSelectRowQuery(tableName string, fields string, indexValue string) string
 	GetSelectLogQuery() string
 	GetInsertLogQuery() string
