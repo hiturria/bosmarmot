@@ -331,7 +331,7 @@ func (adapter *PostgresAdapter) ErrorEquals(err error, sqlError types.SQLError) 
 	return false
 }
 
-// isNumeric determines if a datatype is numeric
+// isNumeric determines if a dataType is numeric
 func isNumeric(dataType types.SQLColumnType) bool {
 	return dataType == types.SQLColumnTypeInt || dataType == types.SQLColumnTypeSerial
 }
