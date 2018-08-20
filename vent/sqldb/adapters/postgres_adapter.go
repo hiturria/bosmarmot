@@ -35,7 +35,7 @@ type PostgresAdapter struct {
 	Schema string
 }
 
-// NewPostgresAdapter connects to a SQL database and creates default schema and _bosmarmot_log if missing
+// NewPostgresAdapter constructs a new db adapter
 func NewPostgresAdapter(schema string, log *logger.Logger) *PostgresAdapter {
 	return &PostgresAdapter{
 		Log:    log,
@@ -43,7 +43,7 @@ func NewPostgresAdapter(schema string, log *logger.Logger) *PostgresAdapter {
 	}
 }
 
-// Open connects to a SQL database and creates default schema and _bosmarmot_log if missing
+// Open connects to a SQL database and opens it
 func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -63,7 +63,7 @@ func (adapter *PostgresAdapter) GetTypeMapping(sqlGenericType string) (string, e
 	return "", err
 }
 
-// GetCreateTableQuery build query for creating a table
+// GetCreateTableQuery builds query for creating a new table
 func (adapter *PostgresAdapter) GetCreateTableQuery(tableName string, columns []types.SQLTableColumn) string {
 	// build query
 	columnsDef := ""
@@ -101,8 +101,8 @@ func (adapter *PostgresAdapter) GetCreateTableQuery(tableName string, columns []
 	return query
 }
 
-// GetUpsertQuery builds a query for upsert
-func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) UpsertQuery {
+// GetUpsertQuery builds a query for upserting rows
+func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) types.UpsertQuery {
 	columns := ""
 	insValues := ""
 	updValues := ""
@@ -110,10 +110,10 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) UpsertQuery
 	nKeys := 0
 	cKey := 0
 
-	upsertQuery := UpsertQuery{
+	upsertQuery := types.UpsertQuery{
 		Query:   "",
 		Length:  0,
-		Columns: make(map[string]UpsertColumn),
+		Columns: make(map[string]types.UpsertColumn),
 	}
 
 	i := 0
@@ -143,7 +143,7 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) UpsertQuery
 			updValues += safeCol + " = $" + fmt.Sprintf("%d", cKey+1)
 		}
 
-		upsertQuery.Columns[safeCol] = UpsertColumn{
+		upsertQuery.Columns[safeCol] = types.UpsertColumn{
 			IsNumeric:   isNum,
 			InsPosition: i - 1,
 			UpdPosition: cKey,
@@ -166,7 +166,7 @@ func (adapter *PostgresAdapter) GetUpsertQuery(table types.SQLTable) UpsertQuery
 	return upsertQuery
 }
 
-// GetLastBlockIDQuery returns query for last inserted blockId in log table
+// GetLastBlockIDQuery returns a query for last inserted blockId in log table
 func (adapter *PostgresAdapter) GetLastBlockIDQuery() string {
 	query := `
 		WITH ll AS (
@@ -185,7 +185,7 @@ func (adapter *PostgresAdapter) GetLastBlockIDQuery() string {
 	return fmt.Sprintf(query, adapter.Schema, adapter.Schema)
 }
 
-// GetFindSchemaQuery returns query that checks if the default schema exists (true/false)
+// GetFindSchemaQuery returns a query that checks if the default schema exists
 func (adapter *PostgresAdapter) GetFindSchemaQuery() string {
 	query := `
 		SELECT
@@ -202,17 +202,17 @@ func (adapter *PostgresAdapter) GetFindSchemaQuery() string {
 	return fmt.Sprintf(query, adapter.Schema)
 }
 
-// GetCreateSchemaQuery returns query that creates schema
+// GetCreateSchemaQuery returns a query that creates a PostgreSQL schema
 func (adapter *PostgresAdapter) GetCreateSchemaQuery() string {
 	return fmt.Sprintf("CREATE SCHEMA %s;", adapter.Schema)
 }
 
-// GetDropSchemaQuery returns query that creates schema
+// GetDropSchemaQuery returns a query that drops a PostgreSQL schema
 func (adapter *PostgresAdapter) GetDropSchemaQuery() string {
 	return fmt.Sprintf("DROP SCHEMA %s CASCADE;", adapter.Schema)
 }
 
-// GetFindTableQuery returns query that checks if a table exists (true/false)
+// GetFindTableQuery returns a query that checks if a table exists
 func (adapter *PostgresAdapter) GetFindTableQuery(tableName string) string {
 	query := `
 		SELECT
@@ -232,7 +232,7 @@ func (adapter *PostgresAdapter) GetFindTableQuery(tableName string) string {
 	return fmt.Sprintf(query, adapter.Schema, tableName)
 }
 
-// GetTableDefinitionQuery returns query with table structure
+// GetTableDefinitionQuery returns a query with table structure
 func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string {
 	return fmt.Sprintf(`
 		WITH dsc AS (
@@ -290,18 +290,18 @@ func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string
 	)
 }
 
-// GetAlterColumnQuery returns query for adding a new column to a table
+// GetAlterColumnQuery returns a query for adding a new column to a table
 func (adapter *PostgresAdapter) GetAlterColumnQuery(tableName string, columnName string, sqlGenericType string) string {
 	sqlType, _ := adapter.GetTypeMapping(sqlGenericType)
 	return fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;", adapter.Schema, tableName, tableName, sqlType)
 }
 
-// GetSelectRowQuery returns query for selecting row values
+// GetSelectRowQuery returns a query for selecting row values
 func (adapter *PostgresAdapter) GetSelectRowQuery(tableName string, fields string, indexValue string) string {
 	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE height='%s';", fields, adapter.Schema, tableName, indexValue)
 }
 
-// GetSelectLogQuery returns query for selecting all tables in a block trn
+// GetSelectLogQuery returns a query for selecting all tables involved in a block trn
 func (adapter *PostgresAdapter) GetSelectLogQuery() string {
 	query := `
 		SELECT
@@ -317,17 +317,17 @@ func (adapter *PostgresAdapter) GetSelectLogQuery() string {
 	return query
 }
 
-// GetInsertLogQuery returns query for inserting into log
+// GetInsertLogQuery returns a query to insert a row in log table
 func (adapter *PostgresAdapter) GetInsertLogQuery() string {
 	return fmt.Sprintf("INSERT INTO %s._bosmarmot_log (timestamp, registers, height) VALUES (CURRENT_TIMESTAMP, $1, $2) RETURNING id", adapter.Schema)
 }
 
-// GetInsertLogDetailQuery returns query for inserting into logdetail
+// GetInsertLogDetailQuery returns a query to insert a row into logdetail table
 func (adapter *PostgresAdapter) GetInsertLogDetailQuery() string {
 	return fmt.Sprintf("INSERT INTO %s._bosmarmot_logdet (id, tblname, tblmap, registers) VALUES ($1, $2, $3, $4)", adapter.Schema)
 }
 
-// ErrorEquals verify if an error is off a determined SQL type
+// ErrorEquals verify if an error is of a given SQL type
 func (adapter *PostgresAdapter) ErrorEquals(err error, SQLError string) bool {
 	if err, ok := err.(*pq.Error); ok {
 		switch SQLError {

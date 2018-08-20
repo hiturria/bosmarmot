@@ -360,7 +360,7 @@ func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 }
 
 // getUpsertParams builds parameters in preparation for an upsert query
-func getUpsertParams(upsertQuery adapters.UpsertQuery, row types.EventDataRow) ([]interface{}, string, error) {
+func getUpsertParams(upsertQuery types.UpsertQuery, row types.EventDataRow) ([]interface{}, string, error) {
 	pointers := make([]interface{}, upsertQuery.Length)
 	containers := make([]sql.NullString, upsertQuery.Length)
 

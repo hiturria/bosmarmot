@@ -3,7 +3,6 @@ package sqldb
 import (
 	"database/sql"
 
-	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"github.com/monax/bosmarmot/vent/types"
 )
 
@@ -12,7 +11,7 @@ type DBAdapter interface {
 	Open(dbURL string) (*sql.DB, error)
 	GetTypeMapping(sqlGenericType string) (string, error)
 	GetCreateTableQuery(tableName string, columns []types.SQLTableColumn) string
-	GetUpsertQuery(table types.SQLTable) adapters.UpsertQuery
+	GetUpsertQuery(table types.SQLTable) types.UpsertQuery
 	GetLastBlockIDQuery() string
 	GetFindSchemaQuery() string
 	GetCreateSchemaQuery() string

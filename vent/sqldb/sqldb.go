@@ -18,7 +18,8 @@ type SQLDB struct {
 	Log       *logger.Logger
 }
 
-// NewSQLDB connects to a SQL database and creates default schema and _bosmarmot_log if missing
+// NewSQLDB delegates work to a specific database adapter implementation,
+// opens database connection and create log tables
 func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, error) {
 	db := &SQLDB{
 		Schema: schema,
@@ -178,7 +179,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 loop:
-// for each table in the block
+	// for each table in the block
 	for tblMap, table := range eventTables {
 		safeTable = adapters.Safe(table.Name)
 
@@ -266,7 +267,7 @@ loop:
 	return nil
 }
 
-// GetBlock returns a table's structure and row data
+// GetBlock returns a table's structure and row data for given block id
 func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 	var data types.EventData
 	data.Block = block
