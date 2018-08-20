@@ -236,7 +236,6 @@ func (adapter *PostgresAdapter) GetFindTableQuery(tableName string) string {
 
 // GetTableDefinitionQuery returns query with table structure
 func (adapter *PostgresAdapter) GetTableDefinitionQuery(tableName string) string {
-
 	return fmt.Sprintf(`
 		WITH dsc AS (
 			SELECT

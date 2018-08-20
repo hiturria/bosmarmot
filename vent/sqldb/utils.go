@@ -38,7 +38,7 @@ func (db *SQLDB) createDefaultSchema() error {
 	_, err := db.DB.Exec(query)
 	if err != nil {
 		if db.DBAdapter.ErrorIsDupSchema(err) {
-			db.Log.Warn("msg", "Duplicate schema")
+			db.Log.Warn("msg", "Duplicated schema")
 			return nil
 		}
 	}
@@ -172,8 +172,8 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 	defer rows.Close()
 
 	columns := make(map[string]types.SQLTableColumn)
-
 	i := 0
+
 	for rows.Next() {
 		i++
 		var columnName string
@@ -181,15 +181,9 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 		var columnIsPK bool
 		var columnDescription string
 		var columnLength int
-
 		var column types.SQLTableColumn
 
-		if err := rows.Scan(&columnName, &columnSQLType, &columnIsPK, &columnDescription, &columnLength); err != nil {
-			db.Log.Debug("msg", "Error scanning table structure", "err", err)
-			return table, err
-		}
-
-		if err := rows.Err(); err != nil {
+		if err = rows.Scan(&columnName, &columnSQLType, &columnIsPK, &columnDescription, &columnLength); err != nil {
 			db.Log.Debug("msg", "Error scanning table structure", "err", err)
 			return table, err
 		}
@@ -202,6 +196,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 		column.Name = columnName
 		column.Primary = columnIsPK
 		column.Type = columnSQLType
+
 		if column.Type == types.SQLColumnTypeVarchar {
 			column.Length = columnLength
 		} else {
@@ -209,6 +204,11 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 		}
 
 		columns[columnDescription] = column
+	}
+
+	if err = rows.Err(); err != nil {
+		db.Log.Debug("msg", "Error during rows iteration", "err", err)
+		return table, err
 	}
 
 	table.Columns = columns
