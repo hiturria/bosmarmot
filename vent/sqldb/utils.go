@@ -37,7 +37,7 @@ func (db *SQLDB) createDefaultSchema() error {
 	db.Log.Debug("msg", "CREATE SCHEMA", "query", adapters.Clean(query))
 	_, err := db.DB.Exec(query)
 	if err != nil {
-		if db.DBAdapter.ErrorIsDupSchema(err) {
+		if db.DBAdapter.ErrorEquals(err, types.ErrDupSchema) {
 			db.Log.Warn("msg", "Duplicated schema")
 			return nil
 		}
@@ -247,7 +247,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 			db.Log.Debug("msg", "ALTER TABLE", "query", adapters.Clean(query))
 			_, err = db.DB.Exec(query)
 			if err != nil {
-				if db.DBAdapter.ErrorIsDupColumn(err) {
+				if db.DBAdapter.ErrorEquals(err, types.ErrDupColumn) {
 					db.Log.Warn("msg", "Duplicate column", "value", safeCol)
 				} else {
 					db.Log.Debug("msg", "Error altering table", "err", err)
@@ -302,10 +302,11 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 	db.Log.Debug("msg", "CREATE TABLE", "query", adapters.Clean(query))
 	_, err := db.DB.Exec(query)
 	if err != nil {
-		if db.DBAdapter.ErrorIsDupTable(err) {
+		if db.DBAdapter.ErrorEquals(err, types.ErrDupColumn) {
 			db.Log.Warn("msg", "Duplicate table", "value", safeTable)
 			return nil
-		} else if db.DBAdapter.ErrorIsInvalidType(err) {
+
+		} else if db.DBAdapter.ErrorEquals(err, types.ErrInvalidType) {
 			db.Log.Debug("msg", "Error creating table, invalid datatype", "err", err)
 			return err
 
