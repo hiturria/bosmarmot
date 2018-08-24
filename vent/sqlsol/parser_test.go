@@ -189,5 +189,25 @@ func TestGetTables(t *testing.T) {
 		require.Equal(t, "LOG0 = 'UserAccounts'", tables["UpdateUserAccount"].Filter)
 
 	})
+}
+
+func TestGetEventSpec(t *testing.T) {
+	goodJSON := test.GoodJSONConfFile(t)
+
+	byteValue := []byte(goodJSON)
+	tableStruct, _ := sqlsol.NewParser(byteValue)
+
+	t.Run("successfully returns event specification structures", func(t *testing.T) {
+		eventSpec := tableStruct.GetEventSpec()
+		require.Equal(t, 2, len(eventSpec))
+		require.Equal(t, "LOG0 = 'UserAccounts'", eventSpec[0].Filter)
+		require.Equal(t, "UserAccounts", eventSpec[0].TableName)
+		require.Equal(t, "UpdateUserAccount", eventSpec[0].Event.Name)
+
+		require.Equal(t, "Log1Text = 'EVENT_TEST'", eventSpec[1].Filter)
+		require.Equal(t, "TEST_TABLE", eventSpec[1].TableName)
+		require.Equal(t, "UpdateTable", eventSpec[1].Event.Name)
+
+	})
 
 }

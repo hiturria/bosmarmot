@@ -4,6 +4,9 @@ import (
 	"github.com/go-ozzo/ozzo-validation"
 )
 
+// EventSpec contains all event specifications
+type EventSpec []EventDefinition
+
 // EventDefinition struct (table name where to persist filtered events and it structure)
 type EventDefinition struct {
 	TableName string                 `json:"TableName"`

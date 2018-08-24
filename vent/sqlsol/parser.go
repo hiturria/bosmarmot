@@ -8,23 +8,30 @@ import (
 	"github.com/monax/bosmarmot/vent/types"
 )
 
-// Parser contains EventTable definition
+// Parser contains EventTable and EventSpecification definitions
 type Parser struct {
 	// maps event names to tables
-	Tables types.EventTables
+	Tables    types.EventTables
+	EventSpec types.EventSpec
 }
 
 // NewParser receives a sqlsol event configuration stream
 // and returns a pointer to a filled parser structure
 func NewParser(byteValue []byte) (*Parser, error) {
-	tables, err := mapToTable(byteValue)
+	tables, eventSpec, err := mapToTable(byteValue)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Parser{
-		Tables: tables,
+		Tables:    tables,
+		EventSpec: eventSpec,
 	}, nil
+}
+
+// GetEventSpec returns the event specification structure
+func (p *Parser) GetEventSpec() types.EventSpec {
+	return p.EventSpec
 }
 
 // GetTables returns the event tables structures
@@ -81,13 +88,13 @@ func (p *Parser) SetTableName(eventName, tableName string) error {
 // mapToTable gets a sqlsol event configuration stream,
 // parses contents, maps event types to SQL column types
 // and fills Event table structure with table and columns info
-func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
+func mapToTable(byteValue []byte) (map[string]types.SQLTable, types.EventSpec, error) {
 	tables := make(map[string]types.SQLTable)
-	eventsDefinition := []types.EventDefinition{}
+	eventsDefinition := types.EventSpec{}
 
 	// parses json config stream
 	if err := json.Unmarshal(byteValue, &eventsDefinition); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// obtain global SQL table columns to add to columns definition map
@@ -97,7 +104,7 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 	for _, eventDef := range eventsDefinition {
 		// validate json structure
 		if err := eventDef.Validate(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		// if it is an event
@@ -112,7 +119,7 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 
 					sqlType, sqlTypeLength, err := getSQLType(eventInput.Type)
 					if err != nil {
-						return nil, err
+						return nil, nil, err
 					}
 
 					j++
@@ -148,18 +155,18 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 	for _, tbls := range tables {
 		tblName[tbls.Name]++
 		if tblName[tbls.Name] > 1 {
-			return nil, fmt.Errorf("mapToTable: duplicated table name: %s ", tbls.Name)
+			return nil, nil, fmt.Errorf("mapToTable: duplicated table name: %s ", tbls.Name)
 		}
 
 		for _, cols := range tbls.Columns {
 			colName[tbls.Name+cols.Name]++
 			if colName[tbls.Name+cols.Name] > 1 {
-				return nil, fmt.Errorf("mapToTable: duplicated column name: %s in table %s", cols.Name, tbls.Name)
+				return nil, nil, fmt.Errorf("mapToTable: duplicated column name: %s in table %s", cols.Name, tbls.Name)
 			}
 		}
 	}
 
-	return tables, nil
+	return tables, eventsDefinition, nil
 }
 
 // getSQLType maps event input types with corresponding
