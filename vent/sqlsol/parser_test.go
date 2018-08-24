@@ -55,14 +55,14 @@ func TestNewParser(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, false, col.Primary)
 		require.Equal(t, types.SQLColumnTypeInt, col.Type)
-		require.Equal(t, "index", col.Name)
+		require.Equal(t, "_index", col.Name)
 		require.Equal(t, 3, col.Order)
 
 		col, err = tableStruct.GetColumn("UpdateUserAccount", "height")
 		require.NoError(t, err)
 		require.Equal(t, false, col.Primary)
 		require.Equal(t, types.SQLColumnTypeVarchar, col.Type)
-		require.Equal(t, "height", col.Name)
+		require.Equal(t, "_height", col.Name)
 		require.Equal(t, 1, col.Order)
 	})
 
@@ -73,6 +73,23 @@ func TestNewParser(t *testing.T) {
 		_, err := sqlsol.NewParser(byteValue)
 		require.Error(t, err)
 	})
+
+	t.Run("returns an error if there are duplicated table names in json file", func(t *testing.T) {
+		duplicatedTableNameJSON := test.DuplicatedTableNameJSONConfFile(t)
+
+		byteValue := []byte(duplicatedTableNameJSON)
+		_, err := sqlsol.NewParser(byteValue)
+		require.Error(t, err)
+	})
+
+	t.Run("returns an error if there are duplicated column names for a given table in json file", func(t *testing.T) {
+		duplicatedColNameJSON := test.DuplicatedColNameJSONConfFile(t)
+
+		byteValue := []byte(duplicatedColNameJSON)
+		_, err := sqlsol.NewParser(byteValue)
+		require.Error(t, err)
+	})
+
 }
 
 func TestGetTableName(t *testing.T) {
@@ -82,9 +99,9 @@ func TestGetTableName(t *testing.T) {
 	tableStruct, _ := sqlsol.NewParser(byteValue)
 
 	t.Run("successfully gets the mapping table name for a given event name", func(t *testing.T) {
-		tableName, err := tableStruct.GetTableName("TEST_EVENTS")
+		tableName, err := tableStruct.GetTableName("UpdateTable")
 		require.NoError(t, err)
-		require.Equal(t, strings.ToLower("EventTest"), tableName)
+		require.Equal(t, strings.ToLower("TEST_TABLE"), tableName)
 	})
 
 	t.Run("unsuccessfully gets the mapping table name for a non existing event name", func(t *testing.T) {
@@ -101,9 +118,9 @@ func TestGetColumnName(t *testing.T) {
 	tableStruct, _ := sqlsol.NewParser(byteValue)
 
 	t.Run("successfully gets the mapping column name for a given event name/item", func(t *testing.T) {
-		columnName, err := tableStruct.GetColumnName("TEST_EVENTS", "description")
+		columnName, err := tableStruct.GetColumnName("UpdateTable", "blocknum")
 		require.NoError(t, err)
-		require.Equal(t, strings.ToLower("testdescription"), columnName)
+		require.Equal(t, strings.ToLower("Block"), columnName)
 	})
 
 	t.Run("unsuccessfully gets the mapping column name for a non existent event name", func(t *testing.T) {
@@ -126,10 +143,10 @@ func TestGetColumn(t *testing.T) {
 	tableStruct, _ := sqlsol.NewParser(byteValue)
 
 	t.Run("successfully gets the mapping column info for a given event name/item", func(t *testing.T) {
-		column, err := tableStruct.GetColumn("TEST_EVENTS", "description")
+		column, err := tableStruct.GetColumn("UpdateTable", "blocknum")
 		require.NoError(t, err)
-		require.Equal(t, strings.ToLower("testdescription"), column.Name)
-		require.Equal(t, types.SQLColumnTypeText, column.Type)
+		require.Equal(t, strings.ToLower("block"), column.Name)
+		require.Equal(t, types.SQLColumnTypeInt, column.Type)
 		require.Equal(t, false, column.Primary)
 	})
 
@@ -151,11 +168,11 @@ func TestSetTableName(t *testing.T) {
 	tableStruct, _ := sqlsol.NewParser(byteValue)
 
 	t.Run("successfully updates table name for a given event name", func(t *testing.T) {
-		err := tableStruct.SetTableName("TEST_EVENTS", "TestTable")
+		err := tableStruct.SetTableName("UpdateTable", "TEST_TABLE")
 
-		tableName, _ := tableStruct.GetTableName("TEST_EVENTS")
+		tableName, _ := tableStruct.GetTableName("UpdateTable")
 		require.NoError(t, err)
-		require.Equal(t, strings.ToLower("TestTable"), tableName)
+		require.Equal(t, strings.ToLower("TEST_TABLE"), tableName)
 	})
 }
 
@@ -168,5 +185,9 @@ func TestGetTables(t *testing.T) {
 	t.Run("successfully returns event tables structures", func(t *testing.T) {
 		tables := tableStruct.GetTables()
 		require.Equal(t, 2, len(tables))
+		require.Equal(t, "useraccounts", tables["UpdateUserAccount"].Name)
+		require.Equal(t, "LOG0 = 'UserAccounts'", tables["UpdateUserAccount"].Filter)
+
 	})
+
 }

@@ -3,6 +3,7 @@ package types
 // SQLTable contains the structure of a SQL table,
 type SQLTable struct {
 	Name    string
+	Filter  string
 	Columns map[string]SQLTableColumn
 }
 

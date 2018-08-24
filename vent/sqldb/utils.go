@@ -92,7 +92,7 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 	}
 
 	logCol["height"] = types.SQLTableColumn{
-		Name:    "height",
+		Name:    "_height",
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
@@ -301,14 +301,17 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 	db.Log.Debug("msg", "CREATE TABLE", "query", clean(query))
 	_, err := db.DB.Exec(query)
 	if err != nil {
-		if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedColumn) {
-			db.Log.Warn("msg", "Duplicate table", "value", safeTable)
+		if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
+			db.Log.Warn("msg", "Error creating table, Duplicated table", "value", safeTable)
 			return nil
 
 		} else if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeInvalidType) {
 			db.Log.Debug("msg", "Error creating table, invalid datatype", "err", err)
 			return err
 
+		} else if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedColumn) {
+			db.Log.Debug("msg", "Error creating table, duplicated column name", "err", err)
+			return err
 		}
 		db.Log.Debug("msg", "Error creating table", "err", err)
 		return err
@@ -342,12 +345,6 @@ func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 			return tables, err
 		}
 
-		err = rows.Err()
-		if err != nil {
-			db.Log.Debug("msg", "Error scanning table structure", "err", err)
-			return tables, err
-		}
-
 		table, err = db.getTableDef(tblName)
 		if err != nil {
 			return tables, err
@@ -355,6 +352,12 @@ func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 
 		tables[tblMap] = table
 	}
+
+	if err = rows.Err(); err != nil {
+		db.Log.Debug("msg", "Error during rows iteration", "err", err)
+		return tables, err
+	}
+
 	return tables, nil
 }
 

@@ -162,7 +162,7 @@ func (adapter *PostgresAdapter) LastBlockIDQuery() string {
 				%s._bosmarmot_log
 		)
 		SELECT
-			COALESCE(height, '0') AS height
+			COALESCE(_height, '0') AS _height
 		FROM
 			ll
 			LEFT OUTER JOIN %s._bosmarmot_log log ON ll.id = log.id
@@ -277,7 +277,7 @@ func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName st
 
 // SelectRowQuery returns a query for selecting row values
 func (adapter *PostgresAdapter) SelectRowQuery(tableName string, fields string, indexValue string) string {
-	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE height='%s';", fields, adapter.Schema, tableName, indexValue)
+	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE _height='%s';", fields, adapter.Schema, tableName, indexValue)
 }
 
 // SelectLogQuery returns a query for selecting all tables involved in a block trn
@@ -290,7 +290,7 @@ func (adapter *PostgresAdapter) SelectLogQuery() string {
 			%s._bosmarmot_log l
 			INNER JOIN %s._bosmarmot_logdet d ON l.id = d.id
 		WHERE
-			height = $1;
+			_height = $1;
 	`
 	query = fmt.Sprintf(query, adapter.Schema, adapter.Schema)
 	return query
@@ -298,7 +298,7 @@ func (adapter *PostgresAdapter) SelectLogQuery() string {
 
 // InsertLogQuery returns a query to insert a row in log table
 func (adapter *PostgresAdapter) InsertLogQuery() string {
-	return fmt.Sprintf("INSERT INTO %s._bosmarmot_log (timestamp, registers, height) VALUES (CURRENT_TIMESTAMP, $1, $2) RETURNING id", adapter.Schema)
+	return fmt.Sprintf("INSERT INTO %s._bosmarmot_log (timestamp, registers, _height) VALUES (CURRENT_TIMESTAMP, $1, $2) RETURNING id", adapter.Schema)
 }
 
 // InsertLogDetailQuery returns a query to insert a row into logdetail table

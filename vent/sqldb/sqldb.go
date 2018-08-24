@@ -319,8 +319,7 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 		for rows.Next() {
 			row := make(map[string]string)
 
-			err = rows.Scan(pointers...)
-			if err != nil {
+			if err = rows.Scan(pointers...); err != nil {
 				db.Log.Debug("msg", "Error scanning data", "err", err)
 				return data, err
 			}
@@ -335,6 +334,11 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 			}
 
 			dataRows = append(dataRows, row)
+		}
+
+		if err = rows.Err(); err != nil {
+			db.Log.Debug("msg", "Error during rows iteration", "err", err)
+			return data, err
 		}
 
 		data.Tables[table.Name] = dataRows

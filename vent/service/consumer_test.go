@@ -106,10 +106,10 @@ func TestRun(t *testing.T) {
 
 	tblData := eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
-	require.Equal(t, "0", tblData[0]["index"])
-	require.Equal(t, "2", tblData[0]["height"])
-	require.Equal(t, "LogEvent", tblData[0]["eventtype"])
-	require.Equal(t, "TEST_EVENTS", tblData[0]["eventname"])
+	require.Equal(t, "0", tblData[0]["_index"])
+	require.Equal(t, "2", tblData[0]["_height"])
+	require.Equal(t, "LogEvent", tblData[0]["_eventtype"])
+	require.Equal(t, "TEST_EVENTS", tblData[0]["_eventname"])
 	require.Equal(t, "TestEvent1", tblData[0]["testname"])
 	require.Equal(t, "Description of TestEvent1", tblData[0]["testdescription"])
 
@@ -122,11 +122,10 @@ func TestRun(t *testing.T) {
 
 	tblData = eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
-	require.Equal(t, "0", tblData[0]["index"])
-	require.Equal(t, "5", tblData[0]["height"])
-	require.Equal(t, "5", tblData[0]["height"])
-	require.Equal(t, "LogEvent", tblData[0]["eventtype"])
-	require.Equal(t, "TEST_EVENTS", tblData[0]["eventname"])
+	require.Equal(t, "0", tblData[0]["_index"])
+	require.Equal(t, "5", tblData[0]["_height"])
+	require.Equal(t, "LogEvent", tblData[0]["_eventtype"])
+	require.Equal(t, "TEST_EVENTS", tblData[0]["_eventname"])
 	require.Equal(t, "TestEvent4", tblData[0]["testname"])
 	require.Equal(t, "Description of TestEvent4", tblData[0]["testdescription"])
 }

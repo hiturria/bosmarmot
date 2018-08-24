@@ -20,10 +20,10 @@ func IsValidEventInputType(value interface{}) error {
 	input, _ := value.(string)
 	val := strings.ToLower(input)
 
-	if val == EventInputTypeInt ||
-		val == EventInputTypeUInt ||
+	if strings.HasPrefix(val, EventInputTypeInt) ||
+		strings.HasPrefix(val, EventInputTypeUInt) ||
+		strings.HasPrefix(val, EventInputTypeBytes) ||
 		val == EventInputTypeAddress ||
-		val == EventInputTypeBytes ||
 		val == EventInputTypeBool ||
 		val == EventInputTypeString {
 		return nil

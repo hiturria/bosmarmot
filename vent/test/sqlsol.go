@@ -24,7 +24,11 @@ func GoodJSONConfFile(t *testing.T) string {
 					"type": "address"
 				}, {
 					"indexed": false,
-					"name": "UnimportantInfo",
+					"name": "userBool",
+					"type": "bool"
+				}, {
+					"indexed": false,
+					"name": "userId",
 					"type": "uint"
 				}],
 				"name": "UpdateUserAccount",
@@ -32,35 +36,51 @@ func GoodJSONConfFile(t *testing.T) string {
 			},
 			"Columns"  : {
 				"userAddress" : {"name" : "address", "primary" : true},
-				"userName": {"name" : "username", "primary" : false}
+				"userName": {"name" : "username", "primary" : false},
+				"userId": {"name" : "userid", "primary" : false},
+				"userBool": {"name" : "userbool", "primary" : false}
 			}
 		},
 		{
-			"TableName" : "EventTest",
-			"Filter" : "LOG0 = 'EventTest'",
-			"Event"  : {
-				"anonymous": false,
-				"inputs": [{
-					"indexed": false,
-					"name": "name",
-					"type": "string"
-				}, {
-					"indexed": false,
-					"name": "description",
-					"type": "string"
-				}, {
-					"indexed": false,
-					"name": "UnimportantInfo",
-					"type": "uint"
-				}],
-				"name": "TEST_EVENTS",
-				"type": "event"
-			},
-			"Columns"  : {
-				"name" : {"name" : "testname", "primary" : true},
-				"description": {"name" : "testdescription", "primary" : false}
-			}
+		"TableName" : "TEST_TABLE",
+		"Filter" : "Log1Text = 'EVENT_TEST'",
+		"Event"  : {
+			"anonymous": false,
+			"inputs": [{
+				"indexed": true,
+				"name": "name",
+				"type": "string"
+			}, {
+				"indexed": false,
+				"name": "key",
+				"type": "uint256"
+			}, {
+				"indexed": false,
+				"name": "blocknum",
+				"type": "uint256"
+			}, {
+				"indexed": false,
+				"name": "somestr",
+				"type": "string"
+			}, {
+				"indexed": false,
+				"name": "this",
+				"type": "address"
+			}, {
+				"indexed": false,
+				"name": "instance",
+				"type": "uint256"
+			}],
+			"name": "UpdateTable",
+			"type": "event"
+		},
+		"Columns"  : {
+			"key"		: {"name" : "Index",    "primary" : true},
+			"blocknum"  : {"name" : "Block",    "primary" : false},
+			"somestr"	: {"name" : "String",   "primary" : false},
+			"instance" 	: {"name" : "Instance", "primary" : false}
 		}
+	}
 	]`
 
 	return goodJSONConfFile
@@ -192,4 +212,128 @@ func BadJSONConfFile(t *testing.T) string {
 	]`
 
 	return badJSONConfFile
+}
+
+// DuplicatedTableNameJSONConfFile sets a good json file but with duplicated table names
+func DuplicatedTableNameJSONConfFile(t *testing.T) string {
+	t.Helper()
+
+	duplicatedTableNameJSONConfFile := `[
+		{
+			"TableName" : "DUPLICATED",
+			"Filter" : "LOG0 = 'UserAccounts'",
+			"Event"  : {
+				"anonymous": false,
+				"inputs": [{
+					"indexed": false,
+					"name": "userName",
+					"type": "string"
+				}, {
+					"indexed": false,
+					"name": "userAddress",
+					"type": "address"
+				}, {
+					"indexed": false,
+					"name": "userBool",
+					"type": "bool"
+				}, {
+					"indexed": false,
+					"name": "userId",
+					"type": "uint"
+				}],
+				"name": "UpdateUserAccount",
+				"type": "event"
+			},
+			"Columns"  : {
+				"userAddress" : {"name" : "address", "primary" : true},
+				"userName": {"name" : "username", "primary" : false},
+				"userId": {"name" : "userid", "primary" : false},
+				"userBool": {"name" : "userbool", "primary" : false}
+			}
+		},
+		{
+		"TableName" : "DUPLICATED",
+		"Filter" : "Log1Text = 'EVENT_TEST'",
+		"Event"  : {
+			"anonymous": false,
+			"inputs": [{
+				"indexed": true,
+				"name": "name",
+				"type": "string"
+			}, {
+				"indexed": false,
+				"name": "key",
+				"type": "uint256"
+			}, {
+				"indexed": false,
+				"name": "blocknum",
+				"type": "uint256"
+			}, {
+				"indexed": false,
+				"name": "somestr",
+				"type": "string"
+			}, {
+				"indexed": false,
+				"name": "this",
+				"type": "address"
+			}, {
+				"indexed": false,
+				"name": "instance",
+				"type": "uint256"
+			}],
+			"name": "UpdateTable",
+			"type": "event"
+		},
+		"Columns"  : {
+			"key"		: {"name" : "Index",    "primary" : true},
+			"blocknum"  : {"name" : "Block",    "primary" : false},
+			"somestr"	: {"name" : "String",   "primary" : false},
+			"instance" 	: {"name" : "Instance", "primary" : false}
+		}
+	}
+	]`
+
+	return duplicatedTableNameJSONConfFile
+}
+
+// DuplicatedColNameJSONConfFile sets a good json file but with duplicated column names for a given table
+func DuplicatedColNameJSONConfFile(t *testing.T) string {
+	t.Helper()
+
+	duplicatedColNameJSONConfFile := `[
+		{
+			"TableName" : "DUPLICATED_COLUMN",
+			"Filter" : "LOG0 = 'UserAccounts'",
+			"Event"  : {
+				"anonymous": false,
+				"inputs": [{
+					"indexed": false,
+					"name": "userName",
+					"type": "string"
+				}, {
+					"indexed": false,
+					"name": "userAddress",
+					"type": "address"
+				}, {
+					"indexed": false,
+					"name": "userBool",
+					"type": "bool"
+				}, {
+					"indexed": false,
+					"name": "userId",
+					"type": "uint"
+				}],
+				"name": "UpdateUserAccount",
+				"type": "event"
+			},
+			"Columns"  : {
+				"userAddress" : {"name" : "address", "primary" : true},
+				"userName": {"name" : "duplicated", "primary" : false},
+				"userId": {"name" : "userid", "primary" : false},
+				"userBool": {"name" : "duplicated", "primary" : false}
+			}
+	}
+	]`
+
+	return duplicatedColNameJSONConfFile
 }

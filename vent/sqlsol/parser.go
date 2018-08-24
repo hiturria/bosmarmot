@@ -105,7 +105,9 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 			// build columns mapping
 			columns := make(map[string]types.SQLTableColumn)
 
-			for i, eventInput := range eventDef.Event.Inputs {
+			j := 0
+
+			for _, eventInput := range eventDef.Event.Inputs {
 				if col, ok := eventDef.Columns[eventInput.Name]; ok {
 
 					sqlType, sqlTypeLength, err := getSQLType(eventInput.Type)
@@ -113,12 +115,14 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 						return nil, err
 					}
 
+					j++
+
 					columns[eventInput.Name] = types.SQLTableColumn{
-						Name:    col.Name,
+						Name:    strings.ToLower(col.Name),
 						Type:    sqlType,
 						Length:  sqlTypeLength,
 						Primary: col.Primary,
-						Order:   i + (globalColumnsLength + 1),
+						Order:   j + globalColumnsLength,
 					}
 				}
 			}
@@ -130,7 +134,27 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 
 			tables[eventDef.Event.Name] = types.SQLTable{
 				Name:    strings.ToLower(eventDef.TableName),
+				Filter:  eventDef.Filter,
 				Columns: columns,
+			}
+		}
+	}
+
+	// check if there are duplicated table names in structure or
+	// duplicated column names (for a given table)
+	tblName := make(map[string]int)
+	colName := make(map[string]int)
+
+	for _, tbls := range tables {
+		tblName[tbls.Name]++
+		if tblName[tbls.Name] > 1 {
+			return nil, fmt.Errorf("mapToTable: duplicated table name: %s ", tbls.Name)
+		}
+
+		for _, cols := range tbls.Columns {
+			colName[tbls.Name+cols.Name]++
+			if colName[tbls.Name+cols.Name] > 1 {
+				return nil, fmt.Errorf("mapToTable: duplicated column name: %s in table %s", cols.Name, tbls.Name)
 			}
 		}
 	}
@@ -141,17 +165,22 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, error) {
 // getSQLType maps event input types with corresponding
 // SQL column types
 func getSQLType(eventInputType string) (types.SQLColumnType, int, error) {
-	switch strings.ToLower(eventInputType) {
-	case types.EventInputTypeInt, types.EventInputTypeUInt:
+	if strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeInt) ||
+		strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeUInt) {
 		return types.SQLColumnTypeInt, 0, nil
-	case types.EventInputTypeAddress, types.EventInputTypeBytes:
+	}
+	if strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeBytes) {
+		return types.SQLColumnTypeVarchar, 100, nil
+	}
+	switch strings.ToLower(eventInputType) {
+	case types.EventInputTypeAddress:
 		return types.SQLColumnTypeVarchar, 100, nil
 	case types.EventInputTypeBool:
 		return types.SQLColumnTypeBool, 0, nil
 	case types.EventInputTypeString:
 		return types.SQLColumnTypeText, 0, nil
 	default:
-		return 0, 0, fmt.Errorf("getSQLType: don't know how to map eventInputType: %s ", eventInputType)
+		return -1, 0, fmt.Errorf("getSQLType: don't know how to map eventInputType: %s ", eventInputType)
 	}
 }
 
@@ -166,7 +195,7 @@ func getGlobalColumns() map[string]types.SQLTableColumn {
 	globalColumns := make(map[string]types.SQLTableColumn)
 
 	globalColumns["height"] = types.SQLTableColumn{
-		Name:    "height",
+		Name:    "_height",
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
@@ -174,21 +203,21 @@ func getGlobalColumns() map[string]types.SQLTableColumn {
 	}
 
 	globalColumns["txHash"] = types.SQLTableColumn{
-		Name:    "txhash",
+		Name:    "_txhash",
 		Type:    types.SQLColumnTypeByteA,
 		Primary: false,
 		Order:   2,
 	}
 
 	globalColumns["index"] = types.SQLTableColumn{
-		Name:    "index",
+		Name:    "_index",
 		Type:    types.SQLColumnTypeInt,
 		Primary: false,
 		Order:   3,
 	}
 
 	globalColumns["eventType"] = types.SQLTableColumn{
-		Name:    "eventtype",
+		Name:    "_eventtype",
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
@@ -196,7 +225,7 @@ func getGlobalColumns() map[string]types.SQLTableColumn {
 	}
 
 	globalColumns["eventName"] = types.SQLTableColumn{
-		Name:    "eventname",
+		Name:    "_eventname",
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,

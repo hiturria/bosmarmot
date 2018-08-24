@@ -85,13 +85,13 @@ func getBlock() (types.EventTables, types.EventData) {
 	cols1["ID"] = types.SQLTableColumn{Name: "test_id", Type: types.SQLColumnTypeInt, Primary: true, Order: 1}
 	cols1["Column1"] = types.SQLTableColumn{Name: "col1", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 2}
 	cols1["Column2"] = types.SQLTableColumn{Name: "col2", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 3}
-	cols1["Column3"] = types.SQLTableColumn{Name: "height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 4}
+	cols1["Column3"] = types.SQLTableColumn{Name: "_height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 4}
 	cols1["Column4"] = types.SQLTableColumn{Name: "col4", Type: types.SQLColumnTypeText, Primary: false, Order: 5}
 	table1 := types.SQLTable{Name: "test_table1", Columns: cols1}
 
 	//table 2
 	cols2 := make(map[string]types.SQLTableColumn)
-	cols2["ID"] = types.SQLTableColumn{Name: "height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: true, Order: 1}
+	cols2["ID"] = types.SQLTableColumn{Name: "_height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: true, Order: 1}
 	cols2["SID"] = types.SQLTableColumn{Name: "sid_id", Type: types.SQLColumnTypeInt, Primary: true, Order: 2}
 	cols2["Field 1"] = types.SQLTableColumn{Name: "field_1", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 3}
 	cols2["Field 2"] = types.SQLTableColumn{Name: "field_2", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 4}
@@ -99,7 +99,7 @@ func getBlock() (types.EventTables, types.EventData) {
 
 	//table 3
 	cols3 := make(map[string]types.SQLTableColumn)
-	cols3["Code"] = types.SQLTableColumn{Name: "height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: true, Order: 1}
+	cols3["Code"] = types.SQLTableColumn{Name: "_height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: true, Order: 1}
 	cols3["Value A"] = types.SQLTableColumn{Name: "val", Type: types.SQLColumnTypeInt, Primary: false, Order: 2}
 	table3 := types.SQLTable{Name: "test_table3", Columns: cols3}
 
@@ -113,11 +113,11 @@ func getBlock() (types.EventTables, types.EventData) {
 	dat.Block = "0123456789ABCDEF0"
 	dat.Tables = make(map[string]types.EventDataTable)
 
-	row11 := map[string]string{"test_id": "1", "col1": "text11", "col2": "text12", "height": "0123456789ABCDEF0", "col4": "14"}
-	row12 := map[string]string{"test_id": "2", "col1": "text21", "col2": "text22", "height": "0123456789ABCDEF0", "col4": "24"}
-	row13 := map[string]string{"test_id": "3", "col1": "text31", "col2": "text32", "height": "0123456789ABCDEF0", "col4": "34"}
-	row14 := map[string]string{"test_id": "4", "col1": "text41", "col3": "text43", "height": "0123456789ABCDEF0"}
-	row15 := map[string]string{"test_id": "1", "col1": "upd", "col2": "upd", "height": "0123456789ABCDEF0", "col4": "upd"}
+	row11 := map[string]string{"test_id": "1", "col1": "text11", "col2": "text12", "_height": "0123456789ABCDEF0", "col4": "14"}
+	row12 := map[string]string{"test_id": "2", "col1": "text21", "col2": "text22", "_height": "0123456789ABCDEF0", "col4": "24"}
+	row13 := map[string]string{"test_id": "3", "col1": "text31", "col2": "text32", "_height": "0123456789ABCDEF0", "col4": "34"}
+	row14 := map[string]string{"test_id": "4", "col1": "text41", "col3": "text43", "_height": "0123456789ABCDEF0"}
+	row15 := map[string]string{"test_id": "1", "col1": "upd", "col2": "upd", "_height": "0123456789ABCDEF0", "col4": "upd"}
 	var rows1 []types.EventDataRow
 	rows1 = append(rows1, row11)
 	rows1 = append(rows1, row12)
@@ -126,11 +126,11 @@ func getBlock() (types.EventTables, types.EventData) {
 	rows1 = append(rows1, row15)
 	dat.Tables["test_table1"] = rows1
 
-	row21 := map[string]string{"height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "A", "field_2": "B"}
-	row22 := map[string]string{"height": "0123456789ABCDEF0", "sid_id": "2", "field_1": "C", "field_2": ""}
-	row23 := map[string]string{"height": "0123456789ABCDEF0", "sid_id": "3", "field_1": "D", "field_2": "E"}
-	row24 := map[string]string{"height": "0123456789ABCDEF0", "sid_id": "4", "field_1": "F"}
-	row25 := map[string]string{"height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "U", "field_2": "U"}
+	row21 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "A", "field_2": "B"}
+	row22 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "2", "field_1": "C", "field_2": ""}
+	row23 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "3", "field_1": "D", "field_2": "E"}
+	row24 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "4", "field_1": "F"}
+	row25 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "U", "field_2": "U"}
 	var rows2 []types.EventDataRow
 	rows2 = append(rows2, row21)
 	rows2 = append(rows2, row22)
@@ -139,10 +139,10 @@ func getBlock() (types.EventTables, types.EventData) {
 	rows2 = append(rows2, row25)
 	dat.Tables["test_table2"] = rows2
 
-	row31 := map[string]string{"height": "0123456789ABCDEF0", "val": "1"}
-	row32 := map[string]string{"height": "0123456789ABCDEF0", "val": "2"}
-	row33 := map[string]string{"height": "0123456789ABCDEF0", "val": "-1"}
-	row34 := map[string]string{"height": "0123456789ABCDEF0"}
+	row31 := map[string]string{"_height": "0123456789ABCDEF0", "val": "1"}
+	row32 := map[string]string{"_height": "0123456789ABCDEF0", "val": "2"}
+	row33 := map[string]string{"_height": "0123456789ABCDEF0", "val": "-1"}
+	row34 := map[string]string{"_height": "0123456789ABCDEF0"}
 	var rows3 []types.EventDataRow
 	rows3 = append(rows3, row31)
 	rows3 = append(rows3, row32)

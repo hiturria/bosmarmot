@@ -149,6 +149,8 @@ func (c *Consumer) Run() error {
 			eventHeader := event.GetHeader()
 			eventLog := event.GetLog()
 
+			c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader))
+
 			// decode event data using the provided event log decoders
 			eventData := DecodeEvent(eventHeader, eventLog, c.EventLogDecoders)
 
