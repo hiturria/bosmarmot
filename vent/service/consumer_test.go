@@ -99,7 +99,7 @@ func TestRun(t *testing.T) {
 	// test data stored in database for two different block ids
 	blockID := "2"
 	eventName := "EventTest"
-	eventData, err := db.GetBlock(blockID)
+	eventData, err := db.GetBlock("LOG0 = 'EventTest'", blockID)
 	require.NoError(t, err)
 	require.Equal(t, "2", eventData.Block)
 	require.Equal(t, 2, len(eventData.Tables))
@@ -115,7 +115,7 @@ func TestRun(t *testing.T) {
 
 	blockID = "5"
 	eventName = "EventTest"
-	eventData, err = db.GetBlock(blockID)
+	eventData, err = db.GetBlock("LOG0 = 'EventTest'", blockID)
 	require.NoError(t, err)
 	require.Equal(t, "5", eventData.Block)
 	require.Equal(t, 2, len(eventData.Tables))

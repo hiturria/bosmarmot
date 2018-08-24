@@ -8,10 +8,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
-	"github.com/hyperledger/burrow/event"
-	"github.com/hyperledger/burrow/event/query"
-	"github.com/hyperledger/burrow/execution/exec"
 	"github.com/hyperledger/burrow/rpc/rpcevents"
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
@@ -64,6 +62,12 @@ func (c *Consumer) Run() error {
 	}
 
 	tables := parser.GetTables()
+	eventSpec := parser.GetEventSpec()
+
+	if len(eventSpec) == 0 {
+		c.Log.Info("msg", "No events specifications found")
+		return nil
+	}
 
 	c.Log.Info("msg", "Connecting to SQL database")
 
@@ -80,23 +84,6 @@ func (c *Consumer) Run() error {
 		return errors.Wrap(err, "Error trying to synchronize database")
 	}
 
-	c.Log.Info("msg", "Getting last processed block number from SQL log table")
-
-	fromBlock, err := db.GetLastBlockID()
-	if err != nil {
-		return errors.Wrap(err, "Error trying to get last processed block number from SQL log table")
-	}
-
-	// right now there is no way to know if the last block of events was completely read
-	// so we have to begin processing from the last block number stored in database
-	// and update event data if already present
-
-	// string to uint64 from event filtering
-	startingBlock, err := strconv.ParseUint(fromBlock, 10, 64)
-	if err != nil {
-		return errors.Wrap(err, "Error trying to convert fromBlock from string to uint64")
-	}
-
 	c.Log.Info("msg", "Connecting to Burrow gRPC server")
 
 	conn, err := grpc.Dial(c.Config.GRPCAddr, grpc.WithInsecure())
@@ -105,125 +92,179 @@ func (c *Consumer) Run() error {
 	}
 	defer conn.Close()
 
-	cli := rpcevents.NewExecutionEventsClient(conn)
+	// start a goroutine to listen for events for each event definition
+	var wg sync.WaitGroup
 
-	request := &rpcevents.BlocksRequest{
-		Query:      query.NewBuilder().AndEquals(event.EventTypeKey, exec.TypeLog.String()).String(),
-		BlockRange: rpcevents.NewBlockRange(rpcevents.AbsoluteBound(startingBlock), rpcevents.LatestBound()),
-	}
-	evs, err := cli.GetEvents(context.Background(), request)
-	if err != nil {
-		return errors.Wrap(err, "Error connecting to events stream")
-	}
+	doneChannel := make(chan bool)
+	errChannel := make(chan error)
 
-	// a fresh new structure to store block data
-	blockData := sqlsol.NewBlockData()
+	for i := range eventSpec {
+		spec := eventSpec[i]
+		wg.Add(1)
 
-	// Grab the events
-	for {
-		if c.Closing {
-			break
-		}
+		go func() {
+			defer wg.Done()
 
-		c.Log.Info("msg", "Waiting for events")
+			c.Log.Info("msg", "Getting last processed block number from SQL log table", "filter", spec.Filter)
 
-		resp, err := evs.Recv()
-		if err != nil {
-			if err == io.EOF {
-				c.Log.Info("msg", "EOF received")
-				break
-			} else {
-				return errors.Wrap(err, "Error receiving events")
+			fromBlock, err := db.GetLastBlockID(spec.Filter)
+			if err != nil {
+				errChannel <- errors.Wrap(err, "Error trying to get last processed block number from SQL log table")
+				return
 			}
-		}
 
-		c.Log.Info("msg", fmt.Sprintf("Events received: %v", len(resp.Events)))
+			// right now there is no way to know if the last block of events was completely read
+			// so we have to begin processing from the last block number stored in database
+			// and update event data if already present
 
-		// get event data
-		for _, event := range resp.Events {
-			// a fresh new row to store column/value data
-			row := make(types.EventDataRow)
+			// string to uint64 from event filtering
+			startingBlock, err := strconv.ParseUint(fromBlock, 10, 64)
+			if err != nil {
+				errChannel <- errors.Wrap(err, "Error trying to convert fromBlock from string to uint64")
+				return
+			}
 
-			// GetHeader gets Header data for the given event
-			// GetLog gets log event data for the given event
-			eventHeader := event.GetHeader()
-			eventLog := event.GetLog()
+			// setup the execution events client for this spec
+			cli := rpcevents.NewExecutionEventsClient(conn)
 
-			c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader))
+			request := &rpcevents.BlocksRequest{
+				Query:      spec.Filter,
+				BlockRange: rpcevents.NewBlockRange(rpcevents.AbsoluteBound(startingBlock), rpcevents.LatestBound()),
+			}
 
-			// decode event data using the provided event log decoders
-			eventData := DecodeEvent(eventHeader, eventLog, c.EventLogDecoders)
+			evs, err := cli.GetEvents(context.Background(), request)
+			if err != nil {
+				errChannel <- errors.Wrap(err, "Error connecting to events stream")
+				return
+			}
 
-			// ------------------------------------------------
-			// if source block number is different than current...
-			// upsert rows in specific SQL event tables and update block number
-			eventBlockID := fmt.Sprintf("%v", eventHeader.GetHeight())
+			// create a fresh new structure to store block data
+			blockData := sqlsol.NewBlockData()
 
-			if strings.TrimSpace(fromBlock) != strings.TrimSpace(eventBlockID) {
-				// store block data in SQL tables (if any)
-				if blockData.PendingRows(fromBlock) {
+			// start listening for events
+			for {
+				if c.Closing {
+					break
+				}
 
-					// gets block data to upsert
-					blk := blockData.GetBlockData()
+				c.Log.Info("msg", "Waiting for events")
 
-					c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk))
-
-					// upsert rows in specific SQL event tables and update block number
-					err = db.SetBlock(tables, blk)
-					if err != nil {
-						return errors.Wrap(err, "Error upserting rows in SQL event tables")
+				resp, err := evs.Recv()
+				if err != nil {
+					if err == io.EOF {
+						c.Log.Info("msg", "EOF received")
+						break
+					} else {
+						errChannel <- errors.Wrap(err, "Error receiving events")
+						return
 					}
 				}
 
-				// end of block setter, clear blockData structure
-				blockData = sqlsol.NewBlockData()
+				c.Log.Info("msg", fmt.Sprintf("Events received: %v", len(resp.Events)))
 
-				// set new block number
-				fromBlock = eventBlockID
-			}
+				// get event data
+				for _, event := range resp.Events {
+					// a fresh new row to store column/value data
+					row := make(types.EventDataRow)
 
-			// get eventName to map to SQL tableName
-			eventName := eventData["eventName"]
-			tableName, err := parser.GetTableName(eventName)
-			if err != nil {
-				return err
-			}
+					// GetHeader gets Header data for the given event
+					// GetLog gets log event data for the given event
+					eventHeader := event.GetHeader()
+					eventLog := event.GetLog()
 
-			// for each data element, maps to SQL columnName and gets its value
-			for k, v := range eventData {
-				columnName, err := parser.GetColumnName(eventName, k)
-				if err != nil {
-					return err
+					c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader))
+
+					// decode event data using the provided event log decoders
+					// TODO: send the spec to the decoder and use it there
+					eventData := DecodeEvent(eventHeader, eventLog, c.EventLogDecoders)
+
+					// ------------------------------------------------
+					// if source block number is different than current...
+					// upsert rows in specific SQL event tables and update block number
+					eventBlockID := fmt.Sprintf("%v", eventHeader.GetHeight())
+
+					if strings.TrimSpace(fromBlock) != strings.TrimSpace(eventBlockID) {
+						// store block data in SQL tables (if any)
+						if blockData.PendingRows(fromBlock) {
+
+							// gets block data to upsert
+							blk := blockData.GetBlockData()
+
+							c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk))
+
+							// upsert rows in specific SQL event tables and update block number
+							err = db.SetBlock(tables, blk)
+							if err != nil {
+								errChannel <- errors.Wrap(err, "Error upserting rows in SQL event tables")
+								return
+							}
+						}
+
+						// end of block setter, clear blockData structure
+						blockData = sqlsol.NewBlockData()
+
+						// set new block number
+						fromBlock = eventBlockID
+					}
+
+					// get eventName to map to SQL tableName
+					eventName := eventData["eventName"]
+					tableName, err := parser.GetTableName(eventName)
+					if err != nil {
+						errChannel <- err
+						return
+					}
+
+					// for each data element, maps to SQL columnName and gets its value
+					for k, v := range eventData {
+						columnName, err := parser.GetColumnName(eventName, k)
+						if err != nil {
+							errChannel <- err
+							return
+						}
+
+						row[columnName] = v
+					}
+
+					// so, the row is filled with data, update structure
+					// store block number
+					blockData.SetBlockID(fromBlock)
+
+					// set row in structure
+					blockData.AddRow(tableName, row)
 				}
-
-				row[columnName] = v
 			}
 
-			// so, the row is filled with data, update structure
-			// store block number
-			blockData.SetBlockID(fromBlock)
+			// store pending block data in SQL tables (if any)
+			if blockData.PendingRows(fromBlock) {
+				// gets block data to upsert
+				blk := blockData.GetBlockData()
 
-			// set row in structure
-			blockData.AddRow(tableName, row)
-		}
+				c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk))
+
+				// upsert rows in specific SQL event tables and update block number
+				err = db.SetBlock(tables, blk)
+				if err != nil {
+					errChannel <- errors.Wrap(err, "Error upserting rows in SQL event tables")
+					return
+				}
+			}
+		}()
 	}
 
-	// store pending block data in SQL tables (if any)
-	if blockData.PendingRows(fromBlock) {
-		// gets block data to upsert
-		blk := blockData.GetBlockData()
+	go func() {
+		// wait for all threads to end
+		wg.Wait()
+		doneChannel <- true
+	}()
 
-		c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk))
-
-		// upsert rows in specific SQL event tables and update block number
-		err = db.SetBlock(tables, blk)
-		if err != nil {
-			return errors.Wrap(err, "Error upserting rows in SQL event tables")
-		}
+	select {
+	case err := <-errChannel:
+		return err
+	case <-doneChannel:
+		c.Log.Info("msg", "Done!")
+		return nil
 	}
-
-	c.Log.Info("msg", "Done!")
-	return nil
 }
 
 // Shutdown gracefully shuts down the events consumer

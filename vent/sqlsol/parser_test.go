@@ -207,7 +207,5 @@ func TestGetEventSpec(t *testing.T) {
 		require.Equal(t, "Log1Text = 'EVENT_TEST'", eventSpec[1].Filter)
 		require.Equal(t, "TEST_TABLE", eventSpec[1].TableName)
 		require.Equal(t, "UpdateTable", eventSpec[1].Event.Name)
-
 	})
-
 }

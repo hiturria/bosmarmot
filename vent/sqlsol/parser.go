@@ -10,7 +10,6 @@ import (
 
 // Parser contains EventTable and EventSpecification definitions
 type Parser struct {
-	// maps event names to tables
 	Tables    types.EventTables
 	EventSpec types.EventSpec
 }
@@ -88,12 +87,12 @@ func (p *Parser) SetTableName(eventName, tableName string) error {
 // mapToTable gets a sqlsol event configuration stream,
 // parses contents, maps event types to SQL column types
 // and fills Event table structure with table and columns info
-func mapToTable(byteValue []byte) (map[string]types.SQLTable, types.EventSpec, error) {
-	tables := make(map[string]types.SQLTable)
-	eventsDefinition := types.EventSpec{}
+func mapToTable(byteValue []byte) (types.EventTables, types.EventSpec, error) {
+	tables := make(types.EventTables)
+	eventSpec := types.EventSpec{}
 
 	// parses json config stream
-	if err := json.Unmarshal(byteValue, &eventsDefinition); err != nil {
+	if err := json.Unmarshal(byteValue, &eventSpec); err != nil {
 		return nil, nil, err
 	}
 
@@ -101,49 +100,46 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, types.EventSpec, e
 	globalColumns := getGlobalColumns()
 	globalColumnsLength := len(globalColumns)
 
-	for _, eventDef := range eventsDefinition {
+	for _, eventDef := range eventSpec {
 		// validate json structure
 		if err := eventDef.Validate(); err != nil {
 			return nil, nil, err
 		}
 
-		// if it is an event
-		if eventDef.Event.Type == "event" {
-			// build columns mapping
-			columns := make(map[string]types.SQLTableColumn)
+		// build columns mapping
+		columns := make(map[string]types.SQLTableColumn)
 
-			j := 0
+		j := 0
 
-			for _, eventInput := range eventDef.Event.Inputs {
-				if col, ok := eventDef.Columns[eventInput.Name]; ok {
+		for _, eventInput := range eventDef.Event.Inputs {
+			if col, ok := eventDef.Columns[eventInput.Name]; ok {
 
-					sqlType, sqlTypeLength, err := getSQLType(eventInput.Type)
-					if err != nil {
-						return nil, nil, err
-					}
+				sqlType, sqlTypeLength, err := getSQLType(eventInput.Type)
+				if err != nil {
+					return nil, nil, err
+				}
 
-					j++
+				j++
 
-					columns[eventInput.Name] = types.SQLTableColumn{
-						Name:    strings.ToLower(col.Name),
-						Type:    sqlType,
-						Length:  sqlTypeLength,
-						Primary: col.Primary,
-						Order:   j + globalColumnsLength,
-					}
+				columns[eventInput.Name] = types.SQLTableColumn{
+					Name:    strings.ToLower(col.Name),
+					Type:    sqlType,
+					Length:  sqlTypeLength,
+					Primary: col.Primary,
+					Order:   j + globalColumnsLength,
 				}
 			}
+		}
 
-			// add global columns to column definition
-			for k, v := range globalColumns {
-				columns[k] = v
-			}
+		// add global columns to column definition
+		for k, v := range globalColumns {
+			columns[k] = v
+		}
 
-			tables[eventDef.Event.Name] = types.SQLTable{
-				Name:    strings.ToLower(eventDef.TableName),
-				Filter:  eventDef.Filter,
-				Columns: columns,
-			}
+		tables[eventDef.Event.Name] = types.SQLTable{
+			Name:    strings.ToLower(eventDef.TableName),
+			Filter:  eventDef.Filter,
+			Columns: columns,
 		}
 	}
 
@@ -166,7 +162,7 @@ func mapToTable(byteValue []byte) (map[string]types.SQLTable, types.EventSpec, e
 		}
 	}
 
-	return tables, eventsDefinition, nil
+	return tables, eventSpec, nil
 }
 
 // getSQLType maps event input types with corresponding
