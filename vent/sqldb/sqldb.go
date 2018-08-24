@@ -83,13 +83,13 @@ func (db *SQLDB) Ping() error {
 }
 
 // GetLastBlockID returns last inserted blockId from log table
-func (db *SQLDB) GetLastBlockID() (string, error) {
+func (db *SQLDB) GetLastBlockID(eventFilter string) (string, error) {
 	query := db.DBAdapter.LastBlockIDQuery()
 	id := ""
 
 	db.Log.Debug("msg", "MAX ID", "query", clean(query))
 
-	if err := db.DB.QueryRow(query).Scan(&id); err != nil {
+	if err := db.DB.QueryRow(query, eventFilter).Scan(&id); err != nil {
 		db.Log.Debug("msg", "Error selecting last block id", "err", err)
 		return "", err
 	}
@@ -158,20 +158,31 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 	defer tx.Rollback()
 
-	// insert into log tables
-	id := 0
-	length := len(eventTables)
-	query := db.DBAdapter.InsertLogQuery()
+	//TODO: COMMENTS
+	/*
+		// insert into log tables
+		id := 0
+		length := len(eventTables)
+		query := db.DBAdapter.InsertLogQuery()
 
-	db.Log.Debug("msg", "INSERT LOG", "query", clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
-	err = tx.QueryRow(query, length, eventData.Block).Scan(&id)
-	if err != nil {
-		db.Log.Debug("msg", "Error inserting into _bosmarmot_log", "err", err)
-		return err
-	}
+		db.Log.Debug("msg", "INSERT LOG", "query", clean(query), "value", fmt.Sprintf("%d %s", length, eventData.Block))
+		err = tx.QueryRow(query, length, ,eventData.Block).Scan(&id)
+		if err != nil {
+			db.Log.Debug("msg", "Error inserting into _bosmarmot_log", "err", err)
+			return err
+		}
 
-	// prepare log detail statement
-	logQuery := db.DBAdapter.InsertLogDetailQuery()
+		// prepare log detail statement
+		logQuery := db.DBAdapter.InsertLogDetailQuery()
+		logStmt, err = tx.Prepare(logQuery)
+		if err != nil {
+			db.Log.Debug("msg", "Error preparing log stmt", "err", err)
+			return err
+		}
+	*/
+
+	// prepare log statement
+	logQuery := db.DBAdapter.InsertLogQuery()
 	logStmt, err = tx.Prepare(logQuery)
 	if err != nil {
 		db.Log.Debug("msg", "Error preparing log stmt", "err", err)
@@ -185,11 +196,11 @@ loop:
 
 		// insert in logdet table
 		dataRows := eventData.Tables[table.Name]
-		length = len(dataRows)
-		db.Log.Debug("msg", "INSERT LOGDET", "query", logQuery, "value", fmt.Sprintf("%d %s %s %d", id, safeTable, tblMap, length))
-		_, err = logStmt.Exec(id, safeTable, tblMap, length)
+		length := len(dataRows)
+		db.Log.Debug("msg", "INSERT LOG", "query", logQuery, "value", fmt.Sprintf("regs = %d tlbl = %s maps = %s fltr = %s blck = %s", length, safeTable, tblMap, table.Filter, eventData.Block))
+		_, err = logStmt.Exec(length, safeTable, tblMap, table.Filter, eventData.Block)
 		if err != nil {
-			db.Log.Debug("msg", "Error inserting into logdet", "err", err)
+			db.Log.Debug("msg", "Error inserting into log", "err", err)
 			return err
 		}
 
@@ -268,13 +279,13 @@ loop:
 }
 
 // GetBlock returns a table's structure and row data for given block id
-func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
+func (db *SQLDB) GetBlock(eventFilter string, block string) (types.EventData, error) {
 	var data types.EventData
 	data.Block = block
 	data.Tables = make(map[string]types.EventDataTable)
 
 	// get all table structures involved in the block
-	tables, err := db.getBlockTables(block)
+	tables, err := db.getBlockTables(eventFilter, block)
 	if err != nil {
 		return data, err
 	}

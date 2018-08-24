@@ -44,11 +44,11 @@ func TestSetBlock(t *testing.T) {
 		err := db.SetBlock(str, dat)
 		require.NoError(t, err)
 
-		id, erri := db.GetLastBlockID()
+		id, erri := db.GetLastBlockID("TEST")
 		fmt.Println("id=", id)
 		require.NoError(t, erri)
 
-		eventData, erre := db.GetBlock(dat.Block)
+		eventData, erre := db.GetBlock("TEST", dat.Block)
 		fmt.Println(eventData)
 		require.NoError(t, erre)
 	})
@@ -87,7 +87,7 @@ func getBlock() (types.EventTables, types.EventData) {
 	cols1["Column2"] = types.SQLTableColumn{Name: "col2", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 3}
 	cols1["Column3"] = types.SQLTableColumn{Name: "_height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 4}
 	cols1["Column4"] = types.SQLTableColumn{Name: "col4", Type: types.SQLColumnTypeText, Primary: false, Order: 5}
-	table1 := types.SQLTable{Name: "test_table1", Columns: cols1}
+	table1 := types.SQLTable{Name: "test_table1", Filter: "TEST", Columns: cols1}
 
 	//table 2
 	cols2 := make(map[string]types.SQLTableColumn)
@@ -95,13 +95,13 @@ func getBlock() (types.EventTables, types.EventData) {
 	cols2["SID"] = types.SQLTableColumn{Name: "sid_id", Type: types.SQLColumnTypeInt, Primary: true, Order: 2}
 	cols2["Field 1"] = types.SQLTableColumn{Name: "field_1", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 3}
 	cols2["Field 2"] = types.SQLTableColumn{Name: "field_2", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: false, Order: 4}
-	table2 := types.SQLTable{Name: "test_table2", Columns: cols2}
+	table2 := types.SQLTable{Name: "test_table2", Filter: "TEST", Columns: cols2}
 
 	//table 3
 	cols3 := make(map[string]types.SQLTableColumn)
 	cols3["Code"] = types.SQLTableColumn{Name: "_height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: true, Order: 1}
 	cols3["Value A"] = types.SQLTableColumn{Name: "val", Type: types.SQLColumnTypeInt, Primary: false, Order: 2}
-	table3 := types.SQLTable{Name: "test_table3", Columns: cols3}
+	table3 := types.SQLTable{Name: "test_table3", Filter: "TEST", Columns: cols3}
 
 	str := make(types.EventTables)
 	str["First"] = table1
