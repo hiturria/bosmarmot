@@ -97,12 +97,14 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 
 	// test data stored in database for two different block ids
-	blockID := "2"
 	eventName := "EventTest"
-	eventData, err := db.GetBlock("LOG0 = 'EventTest'", blockID)
+	filter := "EventType = 'LogEvent'"
+
+	blockID := "2"
+	eventData, err := db.GetBlock(filter, blockID)
 	require.NoError(t, err)
 	require.Equal(t, "2", eventData.Block)
-	require.Equal(t, 2, len(eventData.Tables))
+	require.Equal(t, 1, len(eventData.Tables))
 
 	tblData := eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
@@ -114,11 +116,10 @@ func TestRun(t *testing.T) {
 	require.Equal(t, "Description of TestEvent1", tblData[0]["testdescription"])
 
 	blockID = "5"
-	eventName = "EventTest"
-	eventData, err = db.GetBlock("LOG0 = 'EventTest'", blockID)
+	eventData, err = db.GetBlock(filter, blockID)
 	require.NoError(t, err)
 	require.Equal(t, "5", eventData.Block)
-	require.Equal(t, 2, len(eventData.Tables))
+	require.Equal(t, 1, len(eventData.Tables))
 
 	tblData = eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))

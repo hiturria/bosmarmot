@@ -1,33 +1,7 @@
 [
   {
-    "TableName" : "UserAccounts",
-    "Filter" : "LOG0 = 'UserAccounts'",
-    "Event"  : {
-      "anonymous": false,
-      "inputs": [{
-        "indexed": false,
-        "name": "userName",
-        "type": "string"
-      }, {
-        "indexed": false,
-        "name": "userAddress",
-        "type": "address"
-      }, {
-        "indexed": false,
-        "name": "UnimportantInfo",
-        "type": "uint"
-      }],
-      "name": "UpdateUserAccount",
-      "type": "event"
-    },
-    "Columns"  : {
-      "userAddress" : {"name" : "address", "primary" : true},
-      "userName": {"name" : "username", "primary" : false}
-    }
-  },
-  {
     "TableName" : "EventTest",
-    "Filter" : "LOG0 = 'EventTest'",
+    "Filter" : "EventType = 'LogEvent'",
     "Event"  : {
       "anonymous": false,
       "inputs": [{

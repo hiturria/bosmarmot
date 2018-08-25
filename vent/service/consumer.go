@@ -92,11 +92,13 @@ func (c *Consumer) Run() error {
 	}
 	defer conn.Close()
 
-	// start a goroutine to listen for events for each event definition
-	var wg sync.WaitGroup
+	// start a goroutine to listen to events for each event definition in the spec
+	// doneCh is used for sending a "done" signal from each goroutine to the main thread
+	// eventCh is used for sending received events to the main thread to be stored in the db
+	doneCh := make(chan error)
+	eventCh := make(chan types.EventData)
 
-	doneChannel := make(chan bool)
-	errChannel := make(chan error)
+	var wg sync.WaitGroup
 
 	for i := range eventSpec {
 		spec := eventSpec[i]
@@ -109,7 +111,7 @@ func (c *Consumer) Run() error {
 
 			fromBlock, err := db.GetLastBlockID(spec.Filter)
 			if err != nil {
-				errChannel <- errors.Wrap(err, "Error trying to get last processed block number from SQL log table")
+				doneCh <- errors.Wrapf(err, "Error trying to get last processed block number from SQL log table (filter: %s)", spec.Filter)
 				return
 			}
 
@@ -120,7 +122,7 @@ func (c *Consumer) Run() error {
 			// string to uint64 from event filtering
 			startingBlock, err := strconv.ParseUint(fromBlock, 10, 64)
 			if err != nil {
-				errChannel <- errors.Wrap(err, "Error trying to convert fromBlock from string to uint64")
+				doneCh <- errors.Wrapf(err, "Error trying to convert fromBlock from string to uint64 (filter: %s)", spec.Filter)
 				return
 			}
 
@@ -134,7 +136,7 @@ func (c *Consumer) Run() error {
 
 			evs, err := cli.GetEvents(context.Background(), request)
 			if err != nil {
-				errChannel <- errors.Wrap(err, "Error connecting to events stream")
+				doneCh <- errors.Wrapf(err, "Error connecting to events stream (filter: %s)", spec.Filter)
 				return
 			}
 
@@ -147,20 +149,20 @@ func (c *Consumer) Run() error {
 					break
 				}
 
-				c.Log.Info("msg", "Waiting for events")
+				c.Log.Info("msg", "Waiting for events", "filter", spec.Filter)
 
 				resp, err := evs.Recv()
 				if err != nil {
 					if err == io.EOF {
-						c.Log.Info("msg", "EOF received")
+						c.Log.Info("msg", "EOF received", "filter", spec.Filter)
 						break
 					} else {
-						errChannel <- errors.Wrap(err, "Error receiving events")
+						doneCh <- errors.Wrapf(err, "Error receiving events (filter: %s)", spec.Filter)
 						return
 					}
 				}
 
-				c.Log.Info("msg", fmt.Sprintf("Events received: %v", len(resp.Events)))
+				c.Log.Info("msg", "Events received", "length", len(resp.Events), "filter", spec.Filter)
 
 				// get event data
 				for _, event := range resp.Events {
@@ -172,7 +174,7 @@ func (c *Consumer) Run() error {
 					eventHeader := event.GetHeader()
 					eventLog := event.GetLog()
 
-					c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader))
+					c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader), "filter", spec.Filter)
 
 					// decode event data using the provided event log decoders
 					// TODO: send the spec to the decoder and use it there
@@ -186,18 +188,12 @@ func (c *Consumer) Run() error {
 					if strings.TrimSpace(fromBlock) != strings.TrimSpace(eventBlockID) {
 						// store block data in SQL tables (if any)
 						if blockData.PendingRows(fromBlock) {
-
 							// gets block data to upsert
 							blk := blockData.GetBlockData()
 
-							c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk))
+							c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk), "filter", spec.Filter)
 
-							// upsert rows in specific SQL event tables and update block number
-							err = db.SetBlock(tables, blk)
-							if err != nil {
-								errChannel <- errors.Wrap(err, "Error upserting rows in SQL event tables")
-								return
-							}
+							eventCh <- blk
 						}
 
 						// end of block setter, clear blockData structure
@@ -211,7 +207,7 @@ func (c *Consumer) Run() error {
 					eventName := eventData["eventName"]
 					tableName, err := parser.GetTableName(eventName)
 					if err != nil {
-						errChannel <- err
+						doneCh <- errors.Wrapf(err, "Error getting table name for event (filter: %s)", spec.Filter)
 						return
 					}
 
@@ -219,7 +215,7 @@ func (c *Consumer) Run() error {
 					for k, v := range eventData {
 						columnName, err := parser.GetColumnName(eventName, k)
 						if err != nil {
-							errChannel <- err
+							doneCh <- errors.Wrapf(err, "Error getting column name for event (filter: %s)", spec.Filter)
 							return
 						}
 
@@ -240,14 +236,9 @@ func (c *Consumer) Run() error {
 				// gets block data to upsert
 				blk := blockData.GetBlockData()
 
-				c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk))
+				c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk), "filter", spec.Filter)
 
-				// upsert rows in specific SQL event tables and update block number
-				err = db.SetBlock(tables, blk)
-				if err != nil {
-					errChannel <- errors.Wrap(err, "Error upserting rows in SQL event tables")
-					return
-				}
+				eventCh <- blk
 			}
 		}()
 	}
@@ -255,16 +246,27 @@ func (c *Consumer) Run() error {
 	go func() {
 		// wait for all threads to end
 		wg.Wait()
-		doneChannel <- true
+		doneCh <- nil
 	}()
 
-	select {
-	case err := <-errChannel:
-		return err
-	case <-doneChannel:
-		c.Log.Info("msg", "Done!")
-		return nil
+loop:
+	for {
+		select {
+		case err := <-doneCh:
+			if err != nil {
+				return err
+			}
+			break loop
+		case blk := <-eventCh:
+			// upsert rows in specific SQL event tables and update block number
+			if err := db.SetBlock(tables, blk); err != nil {
+				return errors.Wrap(err, "Error upserting rows in SQL event tables")
+			}
+		}
 	}
+
+	c.Log.Info("msg", "Done!")
+	return nil
 }
 
 // Shutdown gracefully shuts down the events consumer
