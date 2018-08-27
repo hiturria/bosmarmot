@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/hyperledger/burrow/core"
-	"github.com/hyperledger/burrow/execution/exec"
 	"github.com/hyperledger/burrow/integration"
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
@@ -24,11 +23,6 @@ var genesisDoc = integration.TestGenesisDoc(privateAccounts)
 var inputAccount = privateAccounts[0]
 var testConfig = integration.NewTestConfig(genesisDoc)
 var kern *core.Kernel
-
-func testEventLogDecoder(log *exec.LogEvent, data map[string]string) {
-	data["name"] = strings.Trim(log.Topics[2].String(), "\x00")
-	data["description"] = strings.Trim(log.Topics[3].String(), "\x00")
-}
 
 func TestMain(m *testing.M) {
 	cleanup := integration.EnterTestDirectory()
@@ -55,7 +49,7 @@ func TestRun(t *testing.T) {
 	tCli := test.NewTransactClient(t, testConfig.RPC.GRPC.ListenAddress)
 	create := test.CreateContract(t, tCli, inputAccount.Address())
 
-	// Here is how we can generate events
+	// generate events
 	name := "TestEvent1"
 	description := "Description of TestEvent1"
 	test.CallAddEvent(t, tCli, inputAccount.Address(), create.Receipt.ContractAddress, name, description)
@@ -72,14 +66,14 @@ func TestRun(t *testing.T) {
 	description = "Description of TestEvent4"
 	test.CallAddEvent(t, tCli, inputAccount.Address(), create.Receipt.ContractAddress, name, description)
 
-	// This is a workaround for off-by-one on latest bound fixed in burrow
+	// workaround for off-by-one on latest bound fixed in burrow
 	time.Sleep(time.Second * 2)
 
 	// create test db
 	db, closeDB := test.NewTestDB(t)
 	defer closeDB()
 
-	// Run consumer to listen to events
+	// run consumer to listen to events
 	cfg := config.DefaultFlags()
 
 	cfg.DBSchema = db.Schema
@@ -87,11 +81,7 @@ func TestRun(t *testing.T) {
 	cfg.GRPCAddr = testConfig.RPC.GRPC.ListenAddress
 
 	log := logger.NewLogger(cfg.LogLevel)
-
-	// add event decoder for specific event name
-	// this will be no longer needed once event name can be standardize
 	consumer := service.NewConsumer(cfg, log)
-	consumer.AddEventLogDecoder("TEST_EVENTS", testEventLogDecoder)
 
 	err := consumer.Run()
 	require.NoError(t, err)

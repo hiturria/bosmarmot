@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hyperledger/burrow/execution/exec"
 	"github.com/hyperledger/burrow/rpc/rpcevents"
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
@@ -22,25 +23,18 @@ import (
 
 // Consumer contains basic configuration for consumer to run
 type Consumer struct {
-	Config           *config.Flags
-	Log              *logger.Logger
-	EventLogDecoders map[string]EventLogDecoder
-	Closing          bool
+	Config  *config.Flags
+	Log     *logger.Logger
+	Closing bool
 }
 
 // NewConsumer constructs a new consumer configuration
 func NewConsumer(cfg *config.Flags, log *logger.Logger) *Consumer {
 	return &Consumer{
-		Config:           cfg,
-		Log:              log,
-		EventLogDecoders: make(map[string]EventLogDecoder),
-		Closing:          false,
+		Config:  cfg,
+		Log:     log,
+		Closing: false,
 	}
-}
-
-// AddEventLogDecoder adds an event log decoder for a given event name
-func (c *Consumer) AddEventLogDecoder(eventName string, eventLogDecoder EventLogDecoder) {
-	c.EventLogDecoders[eventName] = eventLogDecoder
 }
 
 // Run connects to a grpc service and subscribes to log events,
@@ -177,8 +171,11 @@ func (c *Consumer) Run() error {
 					c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader), "filter", spec.Filter)
 
 					// decode event data using the provided event log decoders
-					// TODO: send the spec to the decoder and use it there
-					eventData := DecodeEvent(eventHeader, eventLog, c.EventLogDecoders)
+					eventData, err := decodeEvent(spec, eventHeader, eventLog)
+					if err != nil {
+						doneCh <- errors.Wrapf(err, "Error decoding event (filter: %s)", spec.Filter)
+						return
+					}
 
 					// ------------------------------------------------
 					// if source block number is different than current...
@@ -273,6 +270,42 @@ loop:
 func (c *Consumer) Shutdown() {
 	c.Log.Info("msg", "Shutting down...")
 	c.Closing = true
+}
+
+// decodeEvent decodes event data
+func decodeEvent(spec types.EventDefinition, header *exec.Header, log *exec.LogEvent) (map[string]string, error) {
+	data := make(map[string]string)
+
+	data["eventName"] = spec.Event.Name
+
+	// decode header
+	data["index"] = fmt.Sprintf("%v", header.GetIndex())
+	data["height"] = fmt.Sprintf("%v", header.GetHeight())
+	data["eventType"] = header.GetEventType().String()
+	data["txHash"] = string(header.TxHash)
+
+	// decode log
+	topicsInd := 1 // TODO: this should be 0, but in the EventsTest the relavant information starts on topics[1]
+
+	if !spec.Event.Anonymous {
+		// if the event is not anonymous, then the first topic is an identifier of the event
+		topicsInd++
+	}
+
+	for _, input := range spec.Event.Inputs {
+		if input.Indexed {
+			if len(log.Topics) <= topicsInd {
+				return nil, errors.New("Not enough topics for event")
+			}
+
+			data[input.Name] = strings.Trim(log.Topics[topicsInd].String(), "\x00")
+			topicsInd++
+		} else {
+			// TODO: decode information from log.Data
+		}
+	}
+
+	return data, nil
 }
 
 // readFile opens a given file and reads it contents into a stream of bytes
