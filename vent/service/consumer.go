@@ -209,14 +209,12 @@ func (c *Consumer) Run() error {
 					}
 
 					// for each data element, maps to SQL columnName and gets its value
+					// if there is no matching column for event item,
+					// that item doesn't need to be stored in db
 					for k, v := range eventData {
-						columnName, err := parser.GetColumnName(eventName, k)
-						if err != nil {
-							doneCh <- errors.Wrapf(err, "Error getting column name for event (filter: %s)", spec.Filter)
-							return
+						if columnName, err := parser.GetColumnName(eventName, k); err == nil {
+							row[columnName] = v
 						}
-
-						row[columnName] = v
 					}
 
 					// so, the row is filled with data, update structure
