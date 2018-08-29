@@ -313,7 +313,7 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 		topicsInd++
 	}
 
-	decodedData := make([]interface{}, len(eventAbiSpec.Inputs))
+	decodedData := make([]string, len(eventAbiSpec.Inputs))
 	decodedDone := false
 
 	for i, input := range eventAbiSpec.Inputs {
@@ -337,7 +337,7 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 			}
 
 			// get from log data
-			data[input.Name] = decodedData[i].(string)
+			data[input.Name] = decodedData[i]
 		}
 	}
 
