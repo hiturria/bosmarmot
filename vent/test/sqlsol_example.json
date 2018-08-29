@@ -10,18 +10,18 @@
         "type": "string"
       }, {
         "indexed": true,
-        "name": "description",
+        "name": "key",
         "type": "string"
       }, {
-        "indexed": false,
-        "name": "UnimportantInfo",
-        "type": "uint"
+        "indexed": true,
+        "name": "description",
+        "type": "string"
       }],
-      "name": "TEST_EVENTS",
+      "name": "UpdateTestEvents",
       "type": "event"
     },
     "Columns"  : {
-      "name" : {"name" : "testname", "primary" : true},
+      "key" : {"name" : "testname", "primary" : true},
       "description": {"name" : "testdescription", "primary" : false}
     }
   },

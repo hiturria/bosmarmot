@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hyperledger/burrow/execution/evm/abi"
 	"github.com/hyperledger/burrow/execution/exec"
 	"github.com/hyperledger/burrow/rpc/rpcevents"
 	"github.com/monax/bosmarmot/vent/config"
@@ -61,6 +63,22 @@ func (c *Consumer) Run() error {
 	if len(eventSpec) == 0 {
 		c.Log.Info("msg", "No events specifications found")
 		return nil
+	}
+
+	abiSpecInput := []types.Event{}
+
+	for _, spec := range eventSpec {
+		abiSpecInput = append(abiSpecInput, spec.Event)
+	}
+
+	abiSpecInputBytes, err := json.Marshal(abiSpecInput)
+	if err != nil {
+		return errors.Wrap(err, "Error generating abi spec input")
+	}
+
+	abiSpec, err := abi.ReadAbiSpec(abiSpecInputBytes)
+	if err != nil {
+		return errors.Wrap(err, "Error creating abi spec")
 	}
 
 	c.Log.Info("msg", "Connecting to SQL database")
@@ -171,7 +189,7 @@ func (c *Consumer) Run() error {
 					c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader), "filter", spec.Filter)
 
 					// decode event data using the provided event log decoders
-					eventData, err := decodeEvent(spec, eventHeader, eventLog)
+					eventData, err := decodeEvent(spec.Event.Name, eventHeader, eventLog, abiSpec)
 					if err != nil {
 						doneCh <- errors.Wrapf(err, "Error decoding event (filter: %s)", spec.Filter)
 						return
@@ -271,10 +289,15 @@ func (c *Consumer) Shutdown() {
 }
 
 // decodeEvent decodes event data
-func decodeEvent(spec types.EventDefinition, header *exec.Header, log *exec.LogEvent) (map[string]string, error) {
+func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiSpec *abi.AbiSpec) (map[string]string, error) {
 	data := make(map[string]string)
 
-	data["eventName"] = spec.Event.Name
+	data["eventName"] = eventName
+
+	eventAbiSpec, ok := abiSpec.Events[eventName]
+	if !ok {
+		return nil, errors.New(fmt.Sprintf("Abi spec not found for event %s", eventName))
+	}
 
 	// decode header
 	data["index"] = fmt.Sprintf("%v", header.GetIndex())
@@ -283,15 +306,19 @@ func decodeEvent(spec types.EventDefinition, header *exec.Header, log *exec.LogE
 	data["txHash"] = string(header.TxHash)
 
 	// decode log
-	topicsInd := 1 // TODO: this should be 0, but in the EventsTest the relavant information starts on topics[1]
+	topicsInd := 0
 
-	if !spec.Event.Anonymous {
+	if !eventAbiSpec.Anonymous {
 		// if the event is not anonymous, then the first topic is an identifier of the event
 		topicsInd++
 	}
 
-	for _, input := range spec.Event.Inputs {
+	decodedData := make([]interface{}, len(eventAbiSpec.Inputs))
+	decodedDone := false
+
+	for i, input := range eventAbiSpec.Inputs {
 		if input.Indexed {
+			// get from log topics
 			if len(log.Topics) <= topicsInd {
 				return nil, errors.New("Not enough topics for event")
 			}
@@ -299,7 +326,18 @@ func decodeEvent(spec types.EventDefinition, header *exec.Header, log *exec.LogE
 			data[input.Name] = strings.Trim(log.Topics[topicsInd].String(), "\x00")
 			topicsInd++
 		} else {
-			// TODO: decode information from log.Data
+			if !decodedDone {
+				if err := abi.Unpack(eventAbiSpec.Inputs, log.Data, &decodedData); err != nil {
+					return nil, errors.Wrap(err, "Could not decode log data")
+				}
+
+				fmt.Printf("\n\ndecodedData = %+v\n\n", decodedData)
+
+				decodedDone = true
+			}
+
+			// get from log data
+			data[input.Name] = decodedData[i].(string)
 		}
 	}
 
