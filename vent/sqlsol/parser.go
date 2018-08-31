@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hyperledger/burrow/execution/evm/abi"
 	"github.com/monax/bosmarmot/vent/types"
+	"github.com/pkg/errors"
 )
 
-// Parser contains EventTable and EventSpecification definitions
+// Parser contains EventTable, EventSpecification and Abi spec definitions
 type Parser struct {
 	Tables    types.EventTables
 	EventSpec types.EventSpec
+	AbiSpec   *abi.AbiSpec
 }
 
 // NewParser receives a sqlsol event configuration stream
@@ -22,10 +25,32 @@ func NewParser(byteValue []byte) (*Parser, error) {
 		return nil, err
 	}
 
+	abiSpecInput := []types.Event{}
+
+	for _, spec := range eventSpec {
+		abiSpecInput = append(abiSpecInput, spec.Event)
+	}
+
+	abiSpecInputBytes, err := json.Marshal(abiSpecInput)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error generating abi spec input")
+	}
+
+	abiSpec, err := abi.ReadAbiSpec(abiSpecInputBytes)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error creating abi spec")
+	}
+
 	return &Parser{
 		Tables:    tables,
 		EventSpec: eventSpec,
+		AbiSpec:   abiSpec,
 	}, nil
+}
+
+// GetAbiSpec returns the abi event specification
+func (p *Parser) GetAbiSpec() *abi.AbiSpec {
+	return p.AbiSpec
 }
 
 // GetEventSpec returns the event specification structure
@@ -170,7 +195,7 @@ func mapToTable(byteValue []byte) (types.EventTables, types.EventSpec, error) {
 func getSQLType(eventInputType string) (types.SQLColumnType, int, error) {
 	if strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeInt) ||
 		strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeUInt) {
-		return types.SQLColumnTypeInt, 0, nil
+		return types.SQLColumnTypeVarchar, 100, nil
 	}
 	if strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeBytes) {
 		return types.SQLColumnTypeVarchar, 100, nil
@@ -214,7 +239,8 @@ func getGlobalColumns() map[string]types.SQLTableColumn {
 
 	globalColumns["index"] = types.SQLTableColumn{
 		Name:    "_index",
-		Type:    types.SQLColumnTypeInt,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
 		Primary: false,
 		Order:   3,
 	}

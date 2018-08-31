@@ -45,16 +45,20 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 		return nil, err
 	}
 
-	var found bool
-	found, err = db.findDefaultSchema()
-	if err != nil {
-		return nil, err
-	}
-
-	if !found {
-		if err = db.createDefaultSchema(); err != nil {
+	// if there is a supplied Schema
+	if schema != "" {
+		var found bool
+		found, err = db.findDefaultSchema()
+		if err != nil {
 			return nil, err
 		}
+
+		if !found {
+			if err = db.createDefaultSchema(); err != nil {
+				return nil, err
+			}
+		}
+
 	}
 
 	// create _bosmarmot_log
@@ -168,14 +172,14 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 
 loop:
 	// for each table in the block
-	for tblMap, table := range eventTables {
+	for eventName, table := range eventTables {
 		safeTable = safe(table.Name)
 
 		// insert in logdet table
 		dataRows := eventData.Tables[table.Name]
 		length := len(dataRows)
-		db.Log.Debug("msg", "INSERT LOG", "query", logQuery, "value", fmt.Sprintf("regs = %d tlbl = %s maps = %s fltr = %s blck = %s", length, safeTable, tblMap, table.Filter, eventData.Block))
-		_, err = logStmt.Exec(length, safeTable, tblMap, table.Filter, eventData.Block)
+		db.Log.Debug("msg", "INSERT LOG", "query", logQuery, "value", fmt.Sprintf("rows = %d tableName = %s eventName = %s filter = %s block = %s", length, safeTable, eventName, table.Filter, eventData.Block))
+		_, err = logStmt.Exec(length, safeTable, eventName, table.Filter, eventData.Block)
 		if err != nil {
 			db.Log.Debug("msg", "Error inserting into log", "err", err)
 			return err

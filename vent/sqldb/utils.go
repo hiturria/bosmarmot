@@ -71,37 +71,37 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 	logCol := make(map[string]types.SQLTableColumn)
 
 	logCol["id"] = types.SQLTableColumn{
-		Name:    "id",
+		Name:    "_id",
 		Type:    types.SQLColumnTypeSerial,
 		Primary: true,
 		Order:   1,
 	}
 
 	logCol["timestamp"] = types.SQLTableColumn{
-		Name:    "timestamp",
+		Name:    "_timestamp",
 		Type:    types.SQLColumnTypeTimeStamp,
 		Primary: false,
 		Order:   2,
 	}
 
 	logCol["tableName"] = types.SQLTableColumn{
-		Name:    "tblName",
+		Name:    "_tableName",
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: true,
 		Order:   3,
 	}
 
-	logCol["tableMap"] = types.SQLTableColumn{
-		Name:    "tblMap",
+	logCol["eventName"] = types.SQLTableColumn{
+		Name:    "_eventName",
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: true,
 		Order:   4,
 	}
 
-	logCol["registers"] = types.SQLTableColumn{
-		Name:    "registers",
+	logCol["rowCount"] = types.SQLTableColumn{
+		Name:    "_rowCount",
 		Type:    types.SQLColumnTypeInt,
 		Primary: false,
 		Order:   5,
@@ -319,11 +319,11 @@ func (db *SQLDB) getBlockTables(eventFilter string, block string) (types.EventTa
 	defer rows.Close()
 
 	for rows.Next() {
-		var tblMap string
-		var tblName string
+		var eventName string
+		var tableName string
 		var table types.SQLTable
 
-		err = rows.Scan(&tblName, &tblMap)
+		err = rows.Scan(&tableName, &eventName)
 		if err != nil {
 			db.Log.Debug("msg", "Error scanning table structure", "err", err)
 			return tables, err
@@ -335,12 +335,12 @@ func (db *SQLDB) getBlockTables(eventFilter string, block string) (types.EventTa
 			return tables, err
 		}
 
-		table, err = db.getTableDef(tblName)
+		table, err = db.getTableDef(tableName)
 		if err != nil {
 			return tables, err
 		}
 
-		tables[tblMap] = table
+		tables[eventName] = table
 	}
 	return tables, nil
 }

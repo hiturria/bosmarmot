@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -57,28 +56,14 @@ func (c *Consumer) Run() error {
 		return errors.Wrap(err, "Error mapping events config stream")
 	}
 
+	// obtain tables structures, event & abi specifications
 	tables := parser.GetTables()
 	eventSpec := parser.GetEventSpec()
+	abiSpec := parser.GetAbiSpec()
 
 	if len(eventSpec) == 0 {
 		c.Log.Info("msg", "No events specifications found")
 		return nil
-	}
-
-	abiSpecInput := []types.Event{}
-
-	for _, spec := range eventSpec {
-		abiSpecInput = append(abiSpecInput, spec.Event)
-	}
-
-	abiSpecInputBytes, err := json.Marshal(abiSpecInput)
-	if err != nil {
-		return errors.Wrap(err, "Error generating abi spec input")
-	}
-
-	abiSpec, err := abi.ReadAbiSpec(abiSpecInputBytes)
-	if err != nil {
-		return errors.Wrap(err, "Error creating abi spec")
 	}
 
 	c.Log.Info("msg", "Connecting to SQL database")
@@ -121,15 +106,14 @@ func (c *Consumer) Run() error {
 
 			c.Log.Info("msg", "Getting last processed block number from SQL log table", "filter", spec.Filter)
 
+			// right now there is no way to know if the last block of events was completely read
+			// so we have to begin processing from the last block number stored in database
+			// for the given event filter and update event data if already present
 			fromBlock, err := db.GetLastBlockID(spec.Filter)
 			if err != nil {
 				doneCh <- errors.Wrapf(err, "Error trying to get last processed block number from SQL log table (filter: %s)", spec.Filter)
 				return
 			}
-
-			// right now there is no way to know if the last block of events was completely read
-			// so we have to begin processing from the last block number stored in database
-			// and update event data if already present
 
 			// string to uint64 from event filtering
 			startingBlock, err := strconv.ParseUint(fromBlock, 10, 64)
@@ -155,7 +139,7 @@ func (c *Consumer) Run() error {
 			// create a fresh new structure to store block data
 			blockData := sqlsol.NewBlockData()
 
-			// start listening for events
+			// start listening to events
 			for {
 				if c.Closing {
 					break
@@ -188,7 +172,7 @@ func (c *Consumer) Run() error {
 
 					c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader), "filter", spec.Filter)
 
-					// decode event data using the provided event log decoders
+					// decode event data using the provided abi specification
 					eventData, err := decodeEvent(spec.Event.Name, eventHeader, eventLog, abiSpec)
 					if err != nil {
 						doneCh <- errors.Wrapf(err, "Error decoding event (filter: %s)", spec.Filter)
@@ -296,10 +280,10 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 
 	eventAbiSpec, ok := abiSpec.Events[eventName]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("Abi spec not found for event %s", eventName))
+		return nil, fmt.Errorf("Abi spec not found for event %s", eventName)
 	}
 
-	// decode header
+	// decode header to get context data for each event
 	data["index"] = fmt.Sprintf("%v", header.GetIndex())
 	data["height"] = fmt.Sprintf("%v", header.GetHeight())
 	data["eventType"] = header.GetEventType().String()
@@ -307,37 +291,46 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 
 	// decode log
 	topicsInd := 0
+	topicsLenght := len(log.Topics)
 
 	if !eventAbiSpec.Anonymous {
-		// if the event is not anonymous, then the first topic is an identifier of the event
+		// if the event is not anonymous,
+		// then the first topic is the signature of the event
 		topicsInd++
 	}
 
-	decodedData := make([]string, len(eventAbiSpec.Inputs))
-	decodedDone := false
+	// build expected data array with go types from abi spec to get log event values
+	decodedData := abi.GetPackingTypes(eventAbiSpec.Inputs)
 
+	// TODO: this will going to be deprecated
+	if len(log.Data) > 0 {
+		// decode log data (non indexed items)
+		if err := abi.Unpack(eventAbiSpec.Inputs, log.Data, &decodedData); err != nil {
+			return nil, errors.Wrap(err, "Could not decode log data")
+		}
+	}
+
+	// TODO: this will become whats next when pr is merged in burrow
+	/*
+	   if err := abi.UnpackEvent(eventAbiSpec.Inputs, log.Topics, log.Data, &decodedData); err != nil {
+	   			return nil, errors.Wrap(err, "Could not decode log events")
+	   }
+	   fmt.Printf("\n\ndecodedData = %+v\n\n", decodedData)
+	*/
+	// for each event item checks if it is in topics array (indexed) -> log.Topics
+	// or in data part (not indexed) -> log.Data
 	for i, input := range eventAbiSpec.Inputs {
 		if input.Indexed {
 			// get from log topics
-			if len(log.Topics) <= topicsInd {
+			if topicsLenght <= topicsInd {
 				return nil, errors.New("Not enough topics for event")
 			}
-
+			// TODO: this will change once decoding is finished
+			// topics need to be decoded as well as data
 			data[input.Name] = strings.Trim(log.Topics[topicsInd].String(), "\x00")
 			topicsInd++
 		} else {
-			if !decodedDone {
-				if err := abi.Unpack(eventAbiSpec.Inputs, log.Data, &decodedData); err != nil {
-					return nil, errors.Wrap(err, "Could not decode log data")
-				}
-
-				fmt.Printf("\n\ndecodedData = %+v\n\n", decodedData)
-
-				decodedDone = true
-			}
-
-			// get from log data
-			data[input.Name] = decodedData[i]
+			data[input.Name] = decodedData[i].(string)
 		}
 	}
 

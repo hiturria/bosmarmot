@@ -157,17 +157,17 @@ func (adapter *PostgresAdapter) LastBlockIDQuery() string {
 	query := `
 		WITH ll AS (
 			SELECT
-				MAX(id) id
+				MAX(_id) AS _id
 			FROM
 				%s._bosmarmot_log
-			WHERE 
+			WHERE
 				_eventFilter = $1
 		)
 		SELECT
 			COALESCE(_height, '0') AS _height
 		FROM
 			ll
-			LEFT OUTER JOIN %s._bosmarmot_log log ON ll.id = log.id
+			LEFT OUTER JOIN %s._bosmarmot_log log ON ll._id = log._id
 	;`
 
 	return fmt.Sprintf(query, adapter.Schema, adapter.Schema)
@@ -286,8 +286,8 @@ func (adapter *PostgresAdapter) SelectRowQuery(tableName string, fields string, 
 func (adapter *PostgresAdapter) SelectLogQuery() string {
 	query := `
 		SELECT DISTINCT
-			tblName,
-			tblMap
+			_tableName,
+			_eventName
 		FROM
 			%s._bosmarmot_log l
 		WHERE
@@ -301,11 +301,11 @@ func (adapter *PostgresAdapter) SelectLogQuery() string {
 // InsertLogQuery returns a query to insert a row in log table
 func (adapter *PostgresAdapter) InsertLogQuery() string {
 	query := `
-		INSERT INTO %s._bosmarmot_log 
-			(timestamp, registers, tblName, tblMap, _eventFilter,_height) 
-		VALUES 
-			(CURRENT_TIMESTAMP, $1, $2, $3, $4, $5) 
-		RETURNING id;`
+		INSERT INTO %s._bosmarmot_log
+			(_timestamp, _rowCount, _tableName, _eventName, _eventFilter, _height)
+		VALUES
+			(CURRENT_TIMESTAMP, $1, $2, $3, $4, $5)
+		RETURNING _id;`
 
 	return fmt.Sprintf(query, adapter.Schema)
 }
