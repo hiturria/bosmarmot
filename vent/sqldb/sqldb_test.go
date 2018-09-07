@@ -3,9 +3,9 @@
 package sqldb_test
 
 import (
-	"fmt"
 	"testing"
 
+	"fmt"
 	"github.com/monax/bosmarmot/vent/sqlsol"
 	"github.com/monax/bosmarmot/vent/test"
 	"github.com/monax/bosmarmot/vent/types"
@@ -13,48 +13,81 @@ import (
 )
 
 func TestSynchronizeDB(t *testing.T) {
-	t.Run("successfully creates default schema, log tables and synchronizes db", func(t *testing.T) {
+
+	//-------------------------------POSTGRES-----------------------------------------------------------------------
+	t.Run("Successfully creates default schema and system tables and synchronizes db", func(t *testing.T) {
 		goodJSON := test.GoodJSONConfFile(t)
 
 		byteValue := []byte(goodJSON)
-		tableStruct, _ := sqlsol.NewParser(byteValue)
+		tableStructure, _ := sqlsol.NewParser(byteValue)
 
-		db, closeDB := test.NewTestDB(t)
-		defer closeDB()
+		db, cleanUpDB := test.NewTestDB(t, types.PostgresDB)
+		defer cleanUpDB()
 
-		errp := db.Ping()
-		require.NoError(t, errp)
+		err := db.Ping()
+		require.NoError(t, err)
 
-		err := db.SynchronizeDB(tableStruct.GetTables())
+		err = db.SynchronizeDB(tableStructure.GetTables())
 		require.NoError(t, err)
 	})
+
+	/*
+		//----------------------------------SQLITE--------------------------------------------------------------------
+		t.Run("successfully creates default schema, log tables and synchronizes db", func(t *testing.T) {
+			//goodJSON := test.GoodJSONConfFile(t)
+
+			//byteValue := []byte(goodJSON)
+			//tableStruct, _ := sqlsol.NewParser(byteValue)
+
+			db, closeDB := test.NewTestDB(t, types.SQLite)
+			defer closeDB()
+
+			errp := db.Ping()
+			require.NoError(t, errp)
+
+			//err := db.SynchronizeDB(tableStruct.GetTables())
+			//require.NoError(t, err)
+		})
+	*/
 }
 
 func TestSetBlock(t *testing.T) {
 	t.Run("successfully inserts a block", func(t *testing.T) {
 
-		db, closeDB := test.NewTestDB(t)
+		db, closeDB := test.NewTestDB(t, types.PostgresDB)
 		defer closeDB()
 
 		errp := db.Ping()
 		require.NoError(t, errp)
 
+		//new
+		fmt.Println()
+		fmt.Println("NEW---------------------------------------------------------------")
 		str, dat := getBlock()
-
 		err := db.SetBlock(str, dat)
 		require.NoError(t, err)
 
+		//read
+		fmt.Println()
+		fmt.Println("READ---------------------------------------------------------------")
 		id, erri := db.GetLastBlockID("TEST")
 		fmt.Println("id=", id)
 		require.NoError(t, erri)
-
 		eventData, erre := db.GetBlock("TEST", dat.Block)
 		fmt.Println(eventData)
 		require.NoError(t, erre)
+
+		//alter
+		fmt.Println()
+		fmt.Println("ALTER---------------------------------------------------------------")
+		str, dat = getAlterBlock()
+		err = db.SetBlock(str, dat)
+		require.NoError(t, err)
+
 	})
 
 	t.Run("successfully creates a table", func(t *testing.T) {
-		db, closeDB := test.NewTestDB(t)
+		db, closeDB := test.NewTestDB(t, types.PostgresDB)
 		defer closeDB()
 
 		errp := db.Ping()
@@ -104,51 +137,61 @@ func getBlock() (types.EventTables, types.EventData) {
 	table3 := types.SQLTable{Name: "test_table3", Filter: "TEST", Columns: cols3}
 
 	str := make(types.EventTables)
-	str["First"] = table1
-	str["Second"] = table2
-	str["Third"] = table3
+	str["1"] = table1
+	str["2"] = table2
+	str["3"] = table3
 
 	//---------------------------------------data-------------------------------------
 	var dat types.EventData
 	dat.Block = "0123456789ABCDEF0"
 	dat.Tables = make(map[string]types.EventDataTable)
 
-	row11 := map[string]string{"test_id": "1", "col1": "text11", "col2": "text12", "_height": "0123456789ABCDEF0", "col4": "14"}
-	row12 := map[string]string{"test_id": "2", "col1": "text21", "col2": "text22", "_height": "0123456789ABCDEF0", "col4": "24"}
-	row13 := map[string]string{"test_id": "3", "col1": "text31", "col2": "text32", "_height": "0123456789ABCDEF0", "col4": "34"}
-	row14 := map[string]string{"test_id": "4", "col1": "text41", "col3": "text43", "_height": "0123456789ABCDEF0"}
-	row15 := map[string]string{"test_id": "1", "col1": "upd", "col2": "upd", "_height": "0123456789ABCDEF0", "col4": "upd"}
 	var rows1 []types.EventDataRow
-	rows1 = append(rows1, row11)
-	rows1 = append(rows1, row12)
-	rows1 = append(rows1, row13)
-	rows1 = append(rows1, row14)
-	rows1 = append(rows1, row15)
+	rows1 = append(rows1, map[string]string{"test_id": "1", "col1": "text11", "col2": "text12", "_height": "0123456789ABCDEF0", "col4": "14"})
+	rows1 = append(rows1, map[string]string{"test_id": "2", "col1": "text21", "col2": "text22", "_height": "0123456789ABCDEF0", "col4": "24"})
+	rows1 = append(rows1, map[string]string{"test_id": "3", "col1": "text31", "col2": "text32", "_height": "0123456789ABCDEF0", "col4": "34"})
+	rows1 = append(rows1, map[string]string{"test_id": "4", "col1": "text41", "col3": "text43", "_height": "0123456789ABCDEF0"})
+	rows1 = append(rows1, map[string]string{"test_id": "1", "col1": "upd", "col2": "upd", "_height": "0123456789ABCDEF0", "col4": "upd"})
 	dat.Tables["test_table1"] = rows1
 
-	row21 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "A", "field_2": "B"}
-	row22 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "2", "field_1": "C", "field_2": ""}
-	row23 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "3", "field_1": "D", "field_2": "E"}
-	row24 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "4", "field_1": "F"}
-	row25 := map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "U", "field_2": "U"}
 	var rows2 []types.EventDataRow
-	rows2 = append(rows2, row21)
-	rows2 = append(rows2, row22)
-	rows2 = append(rows2, row23)
-	rows2 = append(rows2, row24)
-	rows2 = append(rows2, row25)
+	rows2 = append(rows2, map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "A", "field_2": "B"})
+	rows2 = append(rows2, map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "2", "field_1": "C", "field_2": ""})
+	rows2 = append(rows2, map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "3", "field_1": "D", "field_2": "E"})
+	rows2 = append(rows2, map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "4", "field_1": "F"})
+	rows2 = append(rows2, map[string]string{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "U", "field_2": "U"})
 	dat.Tables["test_table2"] = rows2
 
-	row31 := map[string]string{"_height": "0123456789ABCDEF0", "val": "1"}
-	row32 := map[string]string{"_height": "0123456789ABCDEF0", "val": "2"}
-	row33 := map[string]string{"_height": "0123456789ABCDEF0", "val": "-1"}
-	row34 := map[string]string{"_height": "0123456789ABCDEF0"}
 	var rows3 []types.EventDataRow
-	rows3 = append(rows3, row31)
-	rows3 = append(rows3, row32)
-	rows3 = append(rows3, row33)
-	rows3 = append(rows3, row34)
+	rows3 = append(rows3, map[string]string{"_height": "0123456789ABCDEF1", "val": "1"})
+	rows3 = append(rows3, map[string]string{"_height": "0123456789ABCDEF2", "val": "2"})
+	rows3 = append(rows3, map[string]string{"_height": "0123456789ABCDEFX", "val": "-1"})
+	rows3 = append(rows3, map[string]string{"_height": "0123456789ABCDEF0"})
 	dat.Tables["test_table3"] = rows3
+
+	return str, dat
+}
+
+func getAlterBlock() (types.EventTables, types.EventData) {
+
+	//table 3
+	cols4 := make(map[string]types.SQLTableColumn)
+	cols4["Code"] = types.SQLTableColumn{Name: "_height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: true, Order: 1}
+	cols4["Value A"] = types.SQLTableColumn{Name: "val", Type: types.SQLColumnTypeInt, Primary: false, Order: 2}
+	cols4["Value B"] = types.SQLTableColumn{Name: "val_alter", Type: types.SQLColumnTypeInt, Primary: false, Order: 3}
+	table4 := types.SQLTable{Name: "test_table3", Filter: "TEST", Columns: cols4}
+
+	str := make(types.EventTables)
+	str["3"] = table4
+
+	//---------------------------------------data-------------------------------------
+	var dat types.EventData
+	dat.Block = "AAAAAAAAAAAAAA"
+	dat.Tables = make(map[string]types.EventDataTable)
+
+	var rows4 []types.EventDataRow
+	rows4 = append(rows4, map[string]string{"_height": "AAAAAAAAAAAAAAAAA", "val": "1", "val_alter": "1"})
+	dat.Tables["test_table3"] = rows4
 
 	return str, dat
 }

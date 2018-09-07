@@ -10,12 +10,12 @@ import (
 type DBAdapter interface {
 	Open(dbURL string) (*sql.DB, error)
 	TypeMapping(sqlColumnType types.SQLColumnType) (string, error)
-	CreateTableQuery(tableName string, columns []types.SQLTableColumn) string
+	CreateTableQuery(tableName string, columns []types.SQLTableColumn) (string, string)
 	UpsertQuery(table types.SQLTable) types.UpsertQuery
 	LastBlockIDQuery() string
-	FindTableQuery(tableName string) string
-	TableDefinitionQuery(tableName string) string
-	AlterColumnQuery(tableName, columnName string, sqlColumnType types.SQLColumnType) string
+	FindTableQuery() string
+	TableDefinitionQuery() string
+	AlterColumnQuery(tableName, columnName string, sqlColumnType types.SQLColumnType, length int, order int) (string, string)
 	SelectRowQuery(tableName, fields, indexValue string) string
 	SelectLogQuery() string
 	InsertLogQuery() string

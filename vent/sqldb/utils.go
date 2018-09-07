@@ -11,29 +11,31 @@ import (
 
 // findTable checks if a table exists in the default schema
 func (db *SQLDB) findTable(tableName string) (bool, error) {
-	found := false
+	found := 0
 	safeTable := safe(tableName)
-	query := clean(db.DBAdapter.FindTableQuery(safeTable))
+	query := clean(db.DBAdapter.FindTableQuery())
 
 	db.Log.Debug("msg", "FIND TABLE", "query", query, "value", safeTable)
-	err := db.DB.QueryRow(query).Scan(&found)
-
-	if err == nil {
-		if !found {
-			db.Log.Warn("msg", "Table not found", "value", safeTable)
-		}
-	} else {
+	if err := db.DB.QueryRow(query, tableName).Scan(&found); err != nil {
 		db.Log.Debug("msg", "Error finding table", "err", err)
+		return false, err
 	}
 
-	return found, err
+	if found == 0 {
+		db.Log.Warn("msg", "Table not found", "value", safeTable)
+		return false, nil
+	}
+
+	return true, nil
 }
 
-// getLogTableDef returns log structures
-func (db *SQLDB) getLogTableDef() types.EventTables {
+// getSysTablesDefinition returns log structures
+func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 	tables := make(types.EventTables)
+	dicCol := make(map[string]types.SQLTableColumn)
 	logCol := make(map[string]types.SQLTableColumn)
 
+	//log table
 	logCol["id"] = types.SQLTableColumn{
 		Name:    types.SQLColumnNameId,
 		Type:    types.SQLColumnTypeSerial,
@@ -87,9 +89,64 @@ func (db *SQLDB) getLogTableDef() types.EventTables {
 		Order:   7,
 	}
 
-	tables["log"] = types.SQLTable{
+	//dictionary table
+	dicCol["tableName"] = types.SQLTableColumn{
+		Name:    types.SQLColumnNameTableName,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
+		Primary: true,
+		Order:   1,
+	}
+
+	dicCol["columnName"] = types.SQLTableColumn{
+		Name:    types.SQLColumnNameColumnName,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
+		Primary: true,
+		Order:   2,
+	}
+
+	dicCol["columnType"] = types.SQLTableColumn{
+		Name:    types.SQLColumnNameColumnType,
+		Type:    types.SQLColumnTypeInt,
+		Length:  0,
+		Primary: false,
+		Order:   3,
+	}
+
+	dicCol["columnLenght"] = types.SQLTableColumn{
+		Name:    types.SQLColumnNameColumnLength,
+		Type:    types.SQLColumnTypeInt,
+		Length:  0,
+		Primary: false,
+		Order:   4,
+	}
+
+	dicCol["columnPrimaryKey"] = types.SQLTableColumn{
+		Name:    types.SQLColumnNamePrimaryKey,
+		Type:    types.SQLColumnTypeInt,
+		Length:  0,
+		Primary: false,
+		Order:   5,
+	}
+
+	dicCol["columnOrder"] = types.SQLTableColumn{
+		Name:    types.SQLColumnNameColumnOrder,
+		Type:    types.SQLColumnTypeInt,
+		Length:  0,
+		Primary: false,
+		Order:   6,
+	}
+
+	//add tables
+	tables[types.SQLLogTableName] = types.SQLTable{
 		Name:    types.SQLLogTableName,
 		Columns: logCol,
+	}
+
+	tables[types.SQLDictionaryTableName] = types.SQLTable{
+		Name:    types.SQLDictionaryTableName,
+		Columns: dicCol,
 	}
 
 	return tables
@@ -112,10 +169,10 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 	}
 
 	table.Name = safeTable
-	query := clean(db.DBAdapter.TableDefinitionQuery(safeTable))
+	query := clean(db.DBAdapter.TableDefinitionQuery())
 
 	db.Log.Debug("msg", "QUERY STRUCTURE", "query", query, "value", safeTable)
-	rows, err := db.DB.Query(query)
+	rows, err := db.DB.Query(query, safeTable)
 	if err != nil {
 		db.Log.Debug("msg", "Error querying table structure", "err", err)
 		return table, err
@@ -126,14 +183,13 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 	i := 0
 
 	for rows.Next() {
-		i++
 		var columnName string
 		var columnSQLType types.SQLColumnType
-		var columnIsPK bool
+		var columnIsPK int
 		var columnLength int
 		var column types.SQLTableColumn
 
-		if err = rows.Scan(&columnName, &columnSQLType, &columnIsPK, &columnLength); err != nil {
+		if err = rows.Scan(&columnName, &columnSQLType, &columnLength, &columnIsPK); err != nil {
 			db.Log.Debug("msg", "Error scanning table structure", "err", err)
 			return table, err
 		}
@@ -142,18 +198,14 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 			return table, err
 		}
 
-		column.Order = i
 		column.Name = columnName
-		column.Primary = columnIsPK
 		column.Type = columnSQLType
-
-		if column.Type == types.SQLColumnTypeVarchar {
-			column.Length = columnLength
-		} else {
-			column.Length = 0
-		}
+		column.Length = columnLength
+		column.Primary = columnIsPK == 1
+		column.Order = i
 
 		columns[columnName] = column
+		i++
 	}
 
 	if err = rows.Err(); err != nil {
@@ -192,15 +244,22 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 
 		if !found {
 			safeCol := safe(newColumn.Name)
-			query := clean(db.DBAdapter.AlterColumnQuery(safeTable, safeCol, newColumn.Type))
+			query, dictionary := db.DBAdapter.AlterColumnQuery(safeTable, safeCol, newColumn.Type, newColumn.Length, newColumn.Order)
 
-			db.Log.Debug("msg", "ALTER TABLE", "query", query)
-			_, err = db.DB.Exec(query)
+			db.Log.Debug("msg", "ALTER TABLE", "query", safe(query))
+			_, err = db.DB.Exec(safe(query))
 			if err != nil {
 				if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedColumn) {
 					db.Log.Warn("msg", "Duplicate column", "value", safeCol)
 				} else {
 					db.Log.Debug("msg", "Error altering table", "err", err)
+					return err
+				}
+			} else {
+				db.Log.Debug("msg", "STORE DICTIONARY", "query", clean(dictionary))
+				_, err = db.DB.Exec(dictionary)
+				if err != nil {
+					db.Log.Debug("msg", "Error storing  dictionary", "err", err)
 					return err
 				}
 			}
@@ -242,14 +301,14 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 		sortedColumns[tableColumn.Order-1] = tableColumn
 	}
 
-	query := clean(db.DBAdapter.CreateTableQuery(safeTable, sortedColumns))
+	query, dictionary := db.DBAdapter.CreateTableQuery(safeTable, sortedColumns)
 	if query == "" {
 		db.Log.Debug("msg", "empty CREATE TABLE query")
 		return errors.New("empty CREATE TABLE query")
 	}
 
 	// create table
-	db.Log.Debug("msg", "CREATE TABLE", "query", query)
+	db.Log.Debug("msg", "CREATE TABLE", "query", clean(query))
 	_, err := db.DB.Exec(query)
 	if err != nil {
 		if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedColumn) {
@@ -262,6 +321,13 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 
 		}
 		db.Log.Debug("msg", "Error creating table", "err", err)
+		return err
+	}
+
+	db.Log.Debug("msg", "STORE DICTIONARY", "query", clean(dictionary))
+	_, err = db.DB.Exec(dictionary)
+	if err != nil {
+		db.Log.Debug("msg", "Error storing  dictionary", "err", err)
 		return err
 	}
 

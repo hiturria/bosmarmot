@@ -20,15 +20,19 @@ type SQLDB struct {
 
 // NewSQLDB delegates work to a specific database adapter implementation,
 // opens database connection and create log tables
-func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, error) {
+func NewSQLDB(dbAdapter types.SQLDatabaseType, dbURL string, schema string, log *logger.Logger) (*SQLDB, error) {
 	db := &SQLDB{
 		Schema: schema,
 		Log:    log,
 	}
 
 	switch dbAdapter {
-	case "postgres":
+	case types.PostgresDB:
 		db.DBAdapter = adapters.NewPostgresAdapter(safe(schema), log)
+
+	case types.SQLite:
+		db.DBAdapter = adapters.NewSQLiteAdapter(log)
+
 	default:
 		return nil, errors.New("Invalid database adapter")
 	}
@@ -45,9 +49,27 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 		return nil, err
 	}
 
-	// create log table
-	if err = db.SynchronizeDB(db.getLogTableDef()); err != nil {
-		return nil, err
+	//TODO: initialize database
+
+	db.Log.Info("msg", "Initializing DB")
+	eventTables := db.getSysTablesDefinition()
+
+	//IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (1)
+	table := eventTables[types.SQLDictionaryTableName]
+	if err = db.createTable(table); err != nil {
+		if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
+			db.Log.Debug("msg", "Error Initializing DB", "err", err)
+			return nil, err
+		}
+	}
+
+	//IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (2)
+	table = eventTables[types.SQLLogTableName]
+	if err = db.createTable(table); err != nil {
+		if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
+			db.Log.Debug("msg", "Error Initializing DB", "err", err)
+			return nil, err
+		}
 	}
 
 	return db, err
