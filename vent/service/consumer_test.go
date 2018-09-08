@@ -15,6 +15,7 @@ import (
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/service"
 	"github.com/monax/bosmarmot/vent/test"
+	"github.com/monax/bosmarmot/vent/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -70,11 +71,11 @@ func TestRun(t *testing.T) {
 	time.Sleep(time.Second * 2)
 
 	// create test db
-	db, closeDB := test.NewTestDB(t)
+	db, closeDB := test.NewTestDB(t, types.PostgresDB)
 	defer closeDB()
 
 	// run consumer to listen to events
-	cfg := config.DefaultFlags()
+	cfg := config.DefaultFlags(types.PostgresDB)
 
 	cfg.DBSchema = db.Schema
 	cfg.CfgFile = os.Getenv("GOPATH") + "/src/github.com/monax/bosmarmot/vent/test/sqlsol_example.json"

@@ -20,7 +20,7 @@ type SQLDB struct {
 
 // NewSQLDB delegates work to a specific database adapter implementation,
 // opens database connection and create log tables
-func NewSQLDB(dbAdapter types.SQLDatabaseType, dbURL string, schema string, log *logger.Logger) (*SQLDB, error) {
+func NewSQLDB(dbAdapter string, dbURL string, schema string, log *logger.Logger) (*SQLDB, error) {
 	db := &SQLDB{
 		Schema: schema,
 		Log:    log,
@@ -34,7 +34,7 @@ func NewSQLDB(dbAdapter types.SQLDatabaseType, dbURL string, schema string, log 
 		db.DBAdapter = adapters.NewSQLiteAdapter(log)
 
 	default:
-		return nil, errors.New("Invalid database adapter")
+		return nil, errors.New("invalid database adapter")
 	}
 
 	dbc, err := db.DBAdapter.Open(dbURL)
@@ -49,15 +49,13 @@ func NewSQLDB(dbAdapter types.SQLDatabaseType, dbURL string, schema string, log 
 		return nil, err
 	}
 
-	//TODO: initialize database
-
 	db.Log.Info("msg", "Initializing DB")
 	eventTables := db.getSysTablesDefinition()
 
 	//IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (1)
 	table := eventTables[types.SQLDictionaryTableName]
 	if err = db.createTable(table); err != nil {
-		if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
+		if !db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
 			db.Log.Debug("msg", "Error Initializing DB", "err", err)
 			return nil, err
 		}
@@ -66,13 +64,13 @@ func NewSQLDB(dbAdapter types.SQLDatabaseType, dbURL string, schema string, log 
 	//IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (2)
 	table = eventTables[types.SQLLogTableName]
 	if err = db.createTable(table); err != nil {
-		if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
+		if !db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
 			db.Log.Debug("msg", "Error Initializing DB", "err", err)
 			return nil, err
 		}
 	}
 
-	return db, err
+	return db, nil
 }
 
 // Close database connection

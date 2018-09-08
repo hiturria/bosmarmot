@@ -9,6 +9,7 @@ import (
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/service"
+	"github.com/monax/bosmarmot/vent/types"
 	"github.com/spf13/cobra"
 )
 
@@ -18,7 +19,8 @@ var ventCmd = &cobra.Command{
 	Run:   runVentCmd,
 }
 
-var cfg = config.DefaultFlags()
+//TODO: Generalize for SQLite
+var cfg = config.DefaultFlags(types.PostgresDB)
 
 func init() {
 	ventCmd.Flags().StringVar(&cfg.DBAdapter, "db-adapter", cfg.DBAdapter, "Database adatper (only 'postgres' is accepted for now)")
