@@ -261,7 +261,7 @@ func (adapter *PostgresAdapter) TableDefinitionQuery() string {
 }
 
 // AlterColumnQuery returns a query for adding a new column to a table
-func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName string, sqlColumnType types.SQLColumnType, length int, order int) (string, string) {
+func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName string, sqlColumnType types.SQLColumnType, length, order int) (string, string) {
 	sqlType, _ := adapter.TypeMapping(sqlColumnType)
 	if length > 0 {
 		sqlType = fmt.Sprintf("%s(%d)", sqlType, length)
@@ -294,7 +294,7 @@ func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName st
 
 // SelectRowQuery returns a query for selecting row values
 func (adapter *PostgresAdapter) SelectRowQuery(tableName string, fields string, indexValue string) string {
-	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE _height='%s';", fields, adapter.Schema, tableName, indexValue)
+	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE %s='%s';", fields, adapter.Schema, tableName, types.SQLColumnNameHeight, indexValue)
 }
 
 // SelectLogQuery returns a query for selecting all tables involved in a block trn

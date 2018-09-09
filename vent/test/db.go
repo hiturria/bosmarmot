@@ -9,6 +9,7 @@ import (
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/sqldb"
+	"github.com/monax/bosmarmot/vent/types"
 )
 
 func init() {
@@ -56,7 +57,9 @@ func NewTestDB(t *testing.T, database string) (*sqldb.SQLDB, func()) {
 	}
 
 	return db, func() {
-		destroySchema(db, dbSchema)
+		if database != types.SQLiteDB {
+			destroySchema(db, dbSchema)
+		}
 		db.Close()
 	}
 }

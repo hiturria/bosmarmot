@@ -20,7 +20,7 @@ type SQLDB struct {
 
 // NewSQLDB delegates work to a specific database adapter implementation,
 // opens database connection and create log tables
-func NewSQLDB(dbAdapter string, dbURL string, schema string, log *logger.Logger) (*SQLDB, error) {
+func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, error) {
 	db := &SQLDB{
 		Schema: schema,
 		Log:    log,
@@ -30,7 +30,7 @@ func NewSQLDB(dbAdapter string, dbURL string, schema string, log *logger.Logger)
 	case types.PostgresDB:
 		db.DBAdapter = adapters.NewPostgresAdapter(safe(schema), log)
 
-	case types.SQLite:
+	case types.SQLiteDB:
 		db.DBAdapter = adapters.NewSQLiteAdapter(log)
 
 	default:

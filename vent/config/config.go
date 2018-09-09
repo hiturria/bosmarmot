@@ -15,11 +15,18 @@ type Flags struct {
 }
 
 // DefaultFlags returns a configuration with default values
-func DefaultFlags(database string) *Flags {
-	switch database {
+func DefaultFlags(database ...string) *Flags {
+	db := ""
+	if len(database) > 0 {
+		db = database[0]
+	} else {
+		db = types.PostgresDB
+	}
+
+	switch db {
 	case types.PostgresDB:
 		return &Flags{
-			DBAdapter: database,
+			DBAdapter: db,
 			DBURL:     "postgres://user:pass@localhost:5432/vent?sslmode=disable",
 			DBSchema:  "vent",
 			GRPCAddr:  "localhost:10997",
@@ -27,10 +34,10 @@ func DefaultFlags(database string) *Flags {
 			CfgFile:   "",
 		}
 
-	case types.SQLite:
+	case types.SQLiteDB:
 
 		return &Flags{
-			DBAdapter: database,
+			DBAdapter: db,
 			DBURL:     "./vent.db",
 			DBSchema:  "",
 			GRPCAddr:  "",

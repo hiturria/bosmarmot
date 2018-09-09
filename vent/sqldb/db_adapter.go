@@ -15,7 +15,7 @@ type DBAdapter interface {
 	LastBlockIDQuery() string
 	FindTableQuery() string
 	TableDefinitionQuery() string
-	AlterColumnQuery(tableName, columnName string, sqlColumnType types.SQLColumnType, length int, order int) (string, string)
+	AlterColumnQuery(tableName, columnName string, sqlColumnType types.SQLColumnType, length, order int) (string, string)
 	SelectRowQuery(tableName, fields, indexValue string) string
 	SelectLogQuery() string
 	InsertLogQuery() string

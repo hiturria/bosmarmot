@@ -3,9 +3,9 @@ package adapters
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
-	"github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/types"
 )
@@ -20,7 +20,7 @@ var sqliteDataTypes = map[types.SQLColumnType]string{
 	types.SQLColumnTypeTimeStamp: "TIMESTAMP",
 }
 
-// SQLiteAdapter implements DBAdapter for SQLite
+// SQLiteAdapter implements DBAdapter for SQLiteDB
 type SQLiteAdapter struct {
 	Log *logger.Logger
 }
@@ -224,7 +224,7 @@ func (adapter *SQLiteAdapter) TableDefinitionQuery() string {
 }
 
 // AlterColumnQuery returns a query for adding a new column to a table
-func (adapter *SQLiteAdapter) AlterColumnQuery(tableName string, columnName string, sqlColumnType types.SQLColumnType, length int, order int) (string, string) {
+func (adapter *SQLiteAdapter) AlterColumnQuery(tableName string, columnName string, sqlColumnType types.SQLColumnType, length, order int) (string, string) {
 	sqlType, _ := adapter.TypeMapping(sqlColumnType)
 	if length > 0 {
 		sqlType = fmt.Sprintf("%s(%d)", sqlType, length)
@@ -256,7 +256,7 @@ func (adapter *SQLiteAdapter) AlterColumnQuery(tableName string, columnName stri
 
 // SelectRowQuery returns a query for selecting row values
 func (adapter *SQLiteAdapter) SelectRowQuery(tableName string, fields string, indexValue string) string {
-	return fmt.Sprintf("SELECT %s FROM %s WHERE _height='%s';", fields, tableName, indexValue)
+	return fmt.Sprintf("SELECT %s FROM %s WHERE %s='%s';", fields, tableName, types.SQLColumnNameHeight, indexValue)
 }
 
 // SelectLogQuery returns a query for selecting all tables involved in a block trn
@@ -286,22 +286,30 @@ func (adapter *SQLiteAdapter) InsertLogQuery() string {
 
 // ErrorEquals verify if an error is of a given SQL type
 func (adapter *SQLiteAdapter) ErrorEquals(err error, sqlErrorType types.SQLErrorType) bool {
-	if err, ok := err.(*pq.Error); ok {
+
+	//TODO: SQLiteDB  *sqlite3.Error
+	if err, ok := err.(sqlite3.Error); ok {
+		error := err.Error()
+
 		switch sqlErrorType {
 		case types.SQLErrorTypeGeneric:
 			return true
+
 		case types.SQLErrorTypeDuplicatedColumn:
-			return err.Code == "42701"
+			return err.Code == 1 && strings.Contains(error, "duplicate column")
+
 		case types.SQLErrorTypeDuplicatedTable:
-			return err.Code == "42P07"
-		case types.SQLErrorTypeDuplicatedSchema:
-			return err.Code == "42P06"
+			return err.Code == 1 && strings.Contains(error, "table") && strings.Contains(error, "already exists")
+
 		case types.SQLErrorTypeUndefinedTable:
-			return err.Code == "42P01"
+			return err.Code == 1 && strings.Contains(error, "no such table")
+
 		case types.SQLErrorTypeUndefinedColumn:
-			return err.Code == "42703"
+			return err.Code == 1 && strings.Contains(error, "table") && strings.Contains(error, "has no column named")
+
 		case types.SQLErrorTypeInvalidType:
-			return err.Code == "42704"
+			//NOT SUPPORTED
+			return err.Code == 6 //"42704"
 		}
 	}
 

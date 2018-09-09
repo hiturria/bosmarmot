@@ -19,7 +19,7 @@ var ventCmd = &cobra.Command{
 	Run:   runVentCmd,
 }
 
-//TODO: Generalize for SQLite
+//TODO: Generalize for SQLiteDB
 var cfg = config.DefaultFlags(types.PostgresDB)
 
 func init() {

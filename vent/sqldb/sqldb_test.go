@@ -3,9 +3,9 @@
 package sqldb_test
 
 import (
+	"fmt"
 	"testing"
 
-	"fmt"
 	"github.com/monax/bosmarmot/vent/sqlsol"
 	"github.com/monax/bosmarmot/vent/test"
 	"github.com/monax/bosmarmot/vent/types"
@@ -31,24 +31,22 @@ func TestSynchronizeDB(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	/*
-		//----------------------------------SQLITE--------------------------------------------------------------------
-		t.Run("successfully creates default schema, log tables and synchronizes db", func(t *testing.T) {
-			//goodJSON := test.GoodJSONConfFile(t)
+	//----------------------------------SQLITE--------------------------------------------------------------------
+	t.Run("successfully creates database tables and synchronizes db", func(t *testing.T) {
+		//goodJSON := test.GoodJSONConfFile(t)
 
-			//byteValue := []byte(goodJSON)
-			//tableStruct, _ := sqlsol.NewParser(byteValue)
+		//byteValue := []byte(goodJSON)
+		//tableStruct, _ := sqlsol.NewParser(byteValue)
 
-			db, closeDB := test.NewTestDB(t, types.SQLite)
-			defer closeDB()
+		db, closeDB := test.NewTestDB(t, types.SQLiteDB)
+		defer closeDB()
 
-			errp := db.Ping()
-			require.NoError(t, errp)
+		err := db.Ping()
+		require.NoError(t, err)
 
-			//err := db.SynchronizeDB(tableStruct.GetTables())
-			//require.NoError(t, err)
-		})
-	*/
+		//err := db.SynchronizeDB(tableStruct.GetTables())
+		//require.NoError(t, err)
+	})
 }
 
 func TestSetBlock(t *testing.T) {

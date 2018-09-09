@@ -60,8 +60,3 @@ const (
 	SQLColumnNameTxHash    = "_txhash"
 	SQLColumnNameEventType = "_eventtype"
 )
-
-// SQL dictionary table
-
-// defined fixed sql column names in dictionary
-const ()
