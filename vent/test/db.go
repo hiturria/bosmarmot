@@ -69,7 +69,7 @@ func NewTestDB(t *testing.T, database string) (*sqldb.SQLDB, func()) {
 
 	return db, func() {
 		if database != types.SQLiteDB {
-			//destroySchema(db, dbSchema)
+			destroySchema(db, dbSchema)
 			db.Close()
 		} else {
 			db.Close()

@@ -92,7 +92,7 @@ func (adapter *PostgresAdapter) TypeMapping(sqlColumnType types.SQLColumnType) (
 //SecureColumnName return columns between appropriate security containers
 func (adapter *PostgresAdapter) SecureColumnName(columnName string) string {
 	//TODO: use ""?
-	return fmt.Sprintf("\"%s\"", columnName)
+	return `"` + columnName + `"`
 }
 
 // CreateTableQuery builds query for creating a new table
