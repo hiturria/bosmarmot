@@ -38,7 +38,7 @@ func DefaultFlags(database ...string) *Flags {
 
 		return &Flags{
 			DBAdapter: db,
-			DBURL:     "./vent.db",
+			DBURL:     "./vent",
 			DBSchema:  "",
 			GRPCAddr:  "",
 			LogLevel:  "debug",

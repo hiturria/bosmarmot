@@ -12,7 +12,7 @@ import (
 
 var sqliteDataTypes = map[types.SQLColumnType]string{
 	types.SQLColumnTypeBool:      "BOOLEAN",
-	types.SQLColumnTypeByteA:     "BYTEA",
+	types.SQLColumnTypeByteA:     "BLOB",
 	types.SQLColumnTypeInt:       "INTEGER",
 	types.SQLColumnTypeSerial:    "SERIAL",
 	types.SQLColumnTypeText:      "TEXT",
@@ -52,14 +52,21 @@ func (adapter *SQLiteAdapter) TypeMapping(sqlColumnType types.SQLColumnType) (st
 	return "", err
 }
 
+//SecureColumnName return columns between appropriate security containers
+func (adapter *SQLiteAdapter) SecureColumnName(columnName string) string {
+	return fmt.Sprintf("[%s]", columnName)
+}
+
 // CreateTableQuery builds query for creating a new table
 func (adapter *SQLiteAdapter) CreateTableQuery(tableName string, columns []types.SQLTableColumn) (string, string) {
 	// build query
 	columnsDef := ""
 	primaryKey := ""
 	dictionaryValues := ""
+	hasSerial := false
 
 	for i, tableColumn := range columns {
+		secureColumn := fmt.Sprintf("%s", adapter.SecureColumnName(tableColumn.Name))
 		sqlType, _ := adapter.TypeMapping(tableColumn.Type)
 		pKey := 0
 
@@ -68,7 +75,13 @@ func (adapter *SQLiteAdapter) CreateTableQuery(tableName string, columns []types
 			dictionaryValues += ", "
 		}
 
-		columnsDef += fmt.Sprintf("%s %s", tableColumn.Name, sqlType)
+		if tableColumn.Type == types.SQLColumnTypeSerial {
+			//SQLITE AUTOINCREMENT LIMITATION
+			columnsDef += fmt.Sprintf("%s %s", secureColumn, "INTEGER PRIMARY KEY AUTOINCREMENT")
+			hasSerial = true
+		} else {
+			columnsDef += fmt.Sprintf("%s %s", secureColumn, sqlType)
+		}
 
 		if tableColumn.Length > 0 {
 			columnsDef += fmt.Sprintf("(%v)", tableColumn.Length)
@@ -80,7 +93,7 @@ func (adapter *SQLiteAdapter) CreateTableQuery(tableName string, columns []types
 			if primaryKey != "" {
 				primaryKey += ", "
 			}
-			primaryKey += tableColumn.Name
+			primaryKey += fmt.Sprintf("%s", secureColumn)
 		}
 
 		dictionaryValues += fmt.Sprintf("('%s','%s',%d,%d,%d,%d)",
@@ -94,7 +107,12 @@ func (adapter *SQLiteAdapter) CreateTableQuery(tableName string, columns []types
 
 	query := fmt.Sprintf("CREATE TABLE %s (%s", tableName, columnsDef)
 	if primaryKey != "" {
-		query += "," + fmt.Sprintf("CONSTRAINT %s_pkey PRIMARY KEY (%s)", tableName, primaryKey)
+		if hasSerial {
+			//SQLITE AUTOINCREMENT LIMITATION
+			query += "," + fmt.Sprintf("UNIQUE (%s)", primaryKey)
+		} else {
+			query += "," + fmt.Sprintf("CONSTRAINT %s_pkey PRIMARY KEY (%s)", tableName, primaryKey)
+		}
 	}
 	query += ");"
 
@@ -113,6 +131,7 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable) types.UpsertQuer
 	columns := ""
 	insValues := ""
 	updValues := ""
+	pkColumns := ""
 	cols := len(table.Columns)
 	nKeys := 0
 	cKey := 0
@@ -126,6 +145,7 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable) types.UpsertQuer
 	i := 0
 
 	for _, tableColumn := range table.Columns {
+		secureColumn := fmt.Sprintf("%s", adapter.SecureColumnName(tableColumn.Name))
 		cKey = 0
 		i++
 
@@ -134,7 +154,7 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable) types.UpsertQuer
 			columns += ", "
 			insValues += ", "
 		}
-		columns += tableColumn.Name
+		columns += secureColumn
 		insValues += "$" + fmt.Sprintf("%d", i)
 
 		if !tableColumn.Primary {
@@ -145,7 +165,13 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable) types.UpsertQuer
 			if updValues != "" {
 				updValues += ", "
 			}
-			updValues += tableColumn.Name + " = $" + fmt.Sprintf("%d", cKey+1)
+			updValues += secureColumn + " = $" + fmt.Sprintf("%d", cKey+1)
+		} else {
+			//ON CONFLICT (....values....)
+			if pkColumns != "" {
+				pkColumns += ", "
+			}
+			pkColumns += secureColumn
 		}
 
 		upsertQuery.Columns[tableColumn.Name] = types.UpsertColumn{
@@ -158,11 +184,13 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable) types.UpsertQuer
 
 	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s) ", table.Name, columns, insValues)
 
-	if nKeys != 0 {
-		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO UPDATE SET ", table.Name)
-		query += updValues
-	} else {
-		query += fmt.Sprintf("ON CONFLICT ON CONSTRAINT %s_pkey DO NOTHING", table.Name)
+	if pkColumns != "" {
+		if nKeys != 0 {
+			query += fmt.Sprintf("ON CONFLICT (%s) DO UPDATE SET ", pkColumns)
+			query += updValues
+		} else {
+			query += fmt.Sprintf("ON CONFLICT (%s) DO NOTHING", pkColumns)
+		}
 	}
 	query += ";"
 
@@ -232,7 +260,7 @@ func (adapter *SQLiteAdapter) AlterColumnQuery(tableName string, columnName stri
 
 	query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s;",
 		tableName,
-		columnName,
+		fmt.Sprintf("%s", adapter.SecureColumnName(columnName)),
 		sqlType)
 
 	dictionaryQuery := fmt.Sprintf(
@@ -274,42 +302,39 @@ func (adapter *SQLiteAdapter) SelectLogQuery() string {
 func (adapter *SQLiteAdapter) InsertLogQuery() string {
 	query := `
 		INSERT INTO %s (%s,%s,%s,%s,%s,%s)
-		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5)
-		RETURNING %s;`
+		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5);`
 
 	return fmt.Sprintf(query,
 		types.SQLLogTableName,                                                                   //insert
 		types.SQLColumnNameTimeStamp, types.SQLColumnNameRowCount, types.SQLColumnNameTableName, //fields
-		types.SQLColumnNameEventName, types.SQLColumnNameEventFilter, types.SQLColumnNameHeight, //fields
-		types.SQLColumnNameId) //returning
+		types.SQLColumnNameEventName, types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) //fields
 }
 
 // ErrorEquals verify if an error is of a given SQL type
 func (adapter *SQLiteAdapter) ErrorEquals(err error, sqlErrorType types.SQLErrorType) bool {
 
-	//TODO: SQLiteDB  *sqlite3.Error
 	if err, ok := err.(sqlite3.Error); ok {
-		error := err.Error()
+		errDescription := err.Error()
 
 		switch sqlErrorType {
 		case types.SQLErrorTypeGeneric:
 			return true
 
 		case types.SQLErrorTypeDuplicatedColumn:
-			return err.Code == 1 && strings.Contains(error, "duplicate column")
+			return err.Code == 1 && strings.Contains(errDescription, "duplicate column")
 
 		case types.SQLErrorTypeDuplicatedTable:
-			return err.Code == 1 && strings.Contains(error, "table") && strings.Contains(error, "already exists")
+			return err.Code == 1 && strings.Contains(errDescription, "table") && strings.Contains(errDescription, "already exists")
 
 		case types.SQLErrorTypeUndefinedTable:
-			return err.Code == 1 && strings.Contains(error, "no such table")
+			return err.Code == 1 && strings.Contains(errDescription, "no such table")
 
 		case types.SQLErrorTypeUndefinedColumn:
-			return err.Code == 1 && strings.Contains(error, "table") && strings.Contains(error, "has no column named")
+			return err.Code == 1 && strings.Contains(errDescription, "table") && strings.Contains(errDescription, "has no column named")
 
 		case types.SQLErrorTypeInvalidType:
 			//NOT SUPPORTED
-			return err.Code == 6 //"42704"
+			return false
 		}
 	}
 

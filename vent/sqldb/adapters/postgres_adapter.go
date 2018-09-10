@@ -89,6 +89,12 @@ func (adapter *PostgresAdapter) TypeMapping(sqlColumnType types.SQLColumnType) (
 	return "", err
 }
 
+//SecureColumnName return columns between appropriate security containers
+func (adapter *PostgresAdapter) SecureColumnName(columnName string) string {
+	//TODO: use ""?
+	return fmt.Sprintf("\"%s\"", columnName)
+}
+
 // CreateTableQuery builds query for creating a new table
 func (adapter *PostgresAdapter) CreateTableQuery(tableName string, columns []types.SQLTableColumn) (string, string) {
 	// build query
@@ -97,6 +103,7 @@ func (adapter *PostgresAdapter) CreateTableQuery(tableName string, columns []typ
 	dictionaryValues := ""
 
 	for i, tableColumn := range columns {
+		secureColumn := adapter.SecureColumnName(tableColumn.Name)
 		sqlType, _ := adapter.TypeMapping(tableColumn.Type)
 		pKey := 0
 
@@ -105,7 +112,7 @@ func (adapter *PostgresAdapter) CreateTableQuery(tableName string, columns []typ
 			dictionaryValues += ", "
 		}
 
-		columnsDef += fmt.Sprintf("%s %s", tableColumn.Name, sqlType)
+		columnsDef += fmt.Sprintf("%s %s", secureColumn, sqlType)
 
 		if tableColumn.Length > 0 {
 			columnsDef += fmt.Sprintf("(%v)", tableColumn.Length)
@@ -117,7 +124,7 @@ func (adapter *PostgresAdapter) CreateTableQuery(tableName string, columns []typ
 			if primaryKey != "" {
 				primaryKey += ", "
 			}
-			primaryKey += tableColumn.Name
+			primaryKey += secureColumn
 		}
 
 		dictionaryValues += fmt.Sprintf("('%s','%s',%d,%d,%d,%d)",
@@ -163,6 +170,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable) types.UpsertQu
 	i := 0
 
 	for _, tableColumn := range table.Columns {
+		secureColumn := adapter.SecureColumnName(tableColumn.Name)
 		cKey = 0
 		i++
 
@@ -171,7 +179,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable) types.UpsertQu
 			columns += ", "
 			insValues += ", "
 		}
-		columns += tableColumn.Name
+		columns += secureColumn
 		insValues += "$" + fmt.Sprintf("%d", i)
 
 		if !tableColumn.Primary {
@@ -182,7 +190,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable) types.UpsertQu
 			if updValues != "" {
 				updValues += ", "
 			}
-			updValues += tableColumn.Name + " = $" + fmt.Sprintf("%d", cKey+1)
+			updValues += secureColumn + " = $" + fmt.Sprintf("%d", cKey+1)
 		}
 
 		upsertQuery.Columns[tableColumn.Name] = types.UpsertColumn{
@@ -270,7 +278,7 @@ func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName st
 	query := fmt.Sprintf("ALTER TABLE %s.%s ADD COLUMN %s %s;",
 		adapter.Schema,
 		tableName,
-		columnName,
+		adapter.SecureColumnName(columnName),
 		sqlType)
 
 	dictionaryQuery := fmt.Sprintf(
@@ -312,14 +320,12 @@ func (adapter *PostgresAdapter) SelectLogQuery() string {
 func (adapter *PostgresAdapter) InsertLogQuery() string {
 	query := `
 		INSERT INTO %s.%s (%s,%s,%s,%s,%s,%s)
-		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5)
-		RETURNING %s;`
+		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5);`
 
 	return fmt.Sprintf(query,
 		adapter.Schema, types.SQLLogTableName, //insert
 		types.SQLColumnNameTimeStamp, types.SQLColumnNameRowCount, types.SQLColumnNameTableName, //fields
-		types.SQLColumnNameEventName, types.SQLColumnNameEventFilter, types.SQLColumnNameHeight, //fields
-		types.SQLColumnNameId) //returning
+		types.SQLColumnNameEventName, types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) //fields
 }
 
 // ErrorEquals verify if an error is of a given SQL type

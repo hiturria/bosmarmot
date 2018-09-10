@@ -54,7 +54,7 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 		Name:    types.SQLColumnNameTableName,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
-		Primary: true,
+		Primary: false,
 		Order:   3,
 	}
 
@@ -62,7 +62,7 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 		Name:    types.SQLColumnNameEventName,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
-		Primary: true,
+		Primary: false,
 		Order:   4,
 	}
 
@@ -273,12 +273,10 @@ func (db *SQLDB) getSelectQuery(table types.SQLTable, height string) (string, er
 	fields := ""
 
 	for _, tableColumn := range table.Columns {
-		colName := tableColumn.Name
-
 		if fields != "" {
 			fields += ", "
 		}
-		fields += colName
+		fields += db.DBAdapter.SecureColumnName(tableColumn.Name)
 	}
 
 	if fields == "" {
@@ -296,9 +294,24 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 	safeTable := safe(table.Name)
 
 	// sort columns
-	sortedColumns := make([]types.SQLTableColumn, len(table.Columns))
+	columns := len(table.Columns)
+	sortedColumns := make([]types.SQLTableColumn, columns)
 	for _, tableColumn := range table.Columns {
-		sortedColumns[tableColumn.Order-1] = tableColumn
+		if tableColumn.Order <= 0 {
+			db.Log.Debug("msg", "column_order <=0")
+			return fmt.Errorf("table definition error,%s has column_order <=0 (minimum value = 1)", tableColumn.Name)
+
+		} else if tableColumn.Order-1 > columns {
+			db.Log.Debug("msg", "column_order > total_columns")
+			return fmt.Errorf("table definition error, %s has column_order > total_columns", tableColumn.Name)
+
+		} else if sortedColumns[tableColumn.Order-1].Order != 0 {
+			db.Log.Debug("msg", "duplicated column_oder")
+			return fmt.Errorf("table definition error, %s and %s have duplicated column_order", sortedColumns[tableColumn.Order-1].Name, tableColumn.Name)
+
+		} else {
+			sortedColumns[tableColumn.Order-1] = tableColumn
+		}
 	}
 
 	query, dictionary := db.DBAdapter.CreateTableQuery(safeTable, sortedColumns)

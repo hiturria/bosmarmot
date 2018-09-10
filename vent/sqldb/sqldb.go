@@ -26,18 +26,24 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 		Log:    log,
 	}
 
+	url := dbURL
+
 	switch dbAdapter {
 	case types.PostgresDB:
 		db.DBAdapter = adapters.NewPostgresAdapter(safe(schema), log)
 
 	case types.SQLiteDB:
 		db.DBAdapter = adapters.NewSQLiteAdapter(log)
+		if schema != "" {
+			url = url + "_" + schema
+		}
+		url += ".sqlite"
 
 	default:
 		return nil, errors.New("invalid database adapter")
 	}
 
-	dbc, err := db.DBAdapter.Open(dbURL)
+	dbc, err := db.DBAdapter.Open(url)
 	if err != nil {
 		db.Log.Debug("msg", "Error opening database connection", "err", err)
 		return nil, err
