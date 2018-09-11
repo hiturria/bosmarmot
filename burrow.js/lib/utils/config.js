@@ -13,7 +13,7 @@ module.exports = {
   ETH_PADDING: 32,
   ETH_SIGNATURE_LENGTH: 4,
   ETH_BIGNUMBER_ROUNDING_MODE: { ROUNDING_MODE: BigNumber.ROUND_DOWN },
-  DEFAULT_GAS: 1000000,
+  DEFAULT_GAS: 1111111111,
 
   // This is set to 1 as a temporary workaround to an issue in Burrow (see
   // https://github.com/monax/legacy-contracts.js/issues/89) and should be

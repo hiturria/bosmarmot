@@ -302,8 +302,12 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 	// build expected type array with go types from abi spec to get log event values
 	decodedData := abi.GetPackingTypes(eventAbiSpec.Inputs)
 
-	// WA for now (but still not working)
-	decodedData[0] = new(string)
+	for i, topics := range log.Topics {
+		fmt.Printf("\n\ni = %+v\n", i)
+		fmt.Printf("\nlogTopics[i] = %+v\n", topics)
+	}
+
+	fmt.Printf("\n\nlogData = %+v\n\n", log.Data)
 
 	fmt.Printf("\n\neventAbiSpec.Inputs = %+v\n\n", eventAbiSpec.Inputs)
 	fmt.Printf("\n\ndecodedData = %+v\n\n", decodedData)

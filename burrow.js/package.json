@@ -1,7 +1,7 @@
 {
   "name": "@monax/burrow",
   "description": "Javascript library that calls a Hyperledger Burrow server over rpc.",
-  "version": "0.20.4",
+  "version": "0.20.5",
   "author": {
     "name": "Dennis Mckinnon"
   },
