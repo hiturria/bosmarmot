@@ -15,7 +15,7 @@ import (
 
 var ventCmd = &cobra.Command{
 	Use:   "vent",
-	Short: "Vent is an events consumer for Bos",
+	Short: "Vent - an EVM event to SQL database mapping layer",
 	Run:   runVentCmd,
 }
 
@@ -23,12 +23,12 @@ var ventCmd = &cobra.Command{
 var cfg = config.DefaultFlags(types.PostgresDB)
 
 func init() {
-	ventCmd.Flags().StringVar(&cfg.DBAdapter, "db-adapter", cfg.DBAdapter, "Database adatper (only 'postgres' is accepted for now)")
-	ventCmd.Flags().StringVar(&cfg.DBURL, "db-url", cfg.DBURL, "Postgres database URL")
-	ventCmd.Flags().StringVar(&cfg.DBSchema, "db-schema", cfg.DBSchema, "Postgres database schema")
-	ventCmd.Flags().StringVar(&cfg.GRPCAddr, "grpc-addr", cfg.GRPCAddr, "Burrow gRPC address")
+	ventCmd.Flags().StringVar(&cfg.DBAdapter, "db-adapter", cfg.DBAdapter, "Database adapter, 'postgres' or 'sqlite' are fully supported")
+	ventCmd.Flags().StringVar(&cfg.DBURL, "db-url", cfg.DBURL, "PostgreSQL database URL or SQLite db file path")
+	ventCmd.Flags().StringVar(&cfg.DBSchema, "db-schema", cfg.DBSchema, "PostgreSQL database schema or empty for SQLite")
+	ventCmd.Flags().StringVar(&cfg.GRPCAddr, "grpc-addr", cfg.GRPCAddr, "Address to listen to gRPC Hyperledger Burrow server")
 	ventCmd.Flags().StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "Logging level (error, warn, info, debug)")
-	ventCmd.Flags().StringVar(&cfg.CfgFile, "cfg-file", cfg.CfgFile, "Event configuration file (full path)")
+	ventCmd.Flags().StringVar(&cfg.CfgFile, "cfg-file", cfg.CfgFile, "SQLSol json specification file full path")
 }
 
 // Execute executes the vent command

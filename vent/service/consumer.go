@@ -1,15 +1,19 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/big"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/hyperledger/burrow/crypto"
 	"github.com/hyperledger/burrow/execution/evm/abi"
 	"github.com/hyperledger/burrow/execution/exec"
 	"github.com/hyperledger/burrow/rpc/rpcevents"
@@ -20,6 +24,14 @@ import (
 	"github.com/monax/bosmarmot/vent/types"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
+)
+
+const (
+	eventNameLabel   = "eventName"
+	eventHeightLabel = "height"
+	eventTxHashLabel = "txHash"
+	eventIndexLabel  = "index"
+	eventTypeLabel   = "eventType"
 )
 
 // Consumer contains basic configuration for consumer to run
@@ -173,7 +185,7 @@ func (c *Consumer) Run() error {
 					c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader), "filter", spec.Filter)
 
 					// decode event data using the provided abi specification
-					eventData, err := decodeEvent(spec.Event.Name, eventHeader, eventLog, abiSpec)
+					eventData, err := decodeEvent(spec.Event.Name, eventHeader, eventLog, abiSpec, c.Log)
 					if err != nil {
 						doneCh <- errors.Wrapf(err, "Error decoding event (filter: %s)", spec.Filter)
 						return
@@ -203,7 +215,7 @@ func (c *Consumer) Run() error {
 					}
 
 					// get eventName to map to SQL tableName
-					eventName := eventData["eventName"]
+					eventName := eventData[eventNameLabel]
 					tableName, err := parser.GetTableName(eventName)
 					if err != nil {
 						doneCh <- errors.Wrapf(err, "Error getting table name for event (filter: %s)", spec.Filter)
@@ -273,10 +285,12 @@ func (c *Consumer) Shutdown() {
 }
 
 // decodeEvent decodes event data
-func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiSpec *abi.AbiSpec) (map[string]string, error) {
+func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiSpec *abi.AbiSpec, l *logger.Logger) (map[string]string, error) {
+
+	// to prepare decoded data and map to event item name
 	data := make(map[string]string)
 
-	data["eventName"] = eventName
+	data[eventNameLabel] = eventName
 
 	eventAbiSpec, ok := abiSpec.Events[eventName]
 	if !ok {
@@ -284,51 +298,56 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 	}
 
 	// decode header to get context data for each event
-	data["index"] = fmt.Sprintf("%v", header.GetIndex())
-	data["height"] = fmt.Sprintf("%v", header.GetHeight())
-	data["eventType"] = header.GetEventType().String()
-	data["txHash"] = string(header.TxHash)
-
-	// decode log
-	topicsInd := 0
-	topicsLenght := len(log.Topics)
-
-	if !eventAbiSpec.Anonymous {
-		// if the event is not anonymous,
-		// then the first topic is the signature of the event
-		topicsInd++
-	}
+	data[eventIndexLabel] = fmt.Sprintf("%v", header.GetIndex())
+	data[eventHeightLabel] = fmt.Sprintf("%v", header.GetHeight())
+	data[eventTypeLabel] = header.GetEventType().String()
+	data[eventTxHashLabel] = string(header.TxHash)
 
 	// build expected type array with go types from abi spec to get log event values
-	decodedData := abi.GetPackingTypes(eventAbiSpec.Inputs)
+	unpackedData := abi.GetPackingTypes(eventAbiSpec.Inputs)
 
-	for i, topics := range log.Topics {
-		fmt.Printf("\n\ni = %+v\n", i)
-		fmt.Printf("\nlogTopics[i] = %+v\n", topics)
+	// any indexed string (or dynamic array) will be hashed, so we might want to store strings
+	// in bytes32. This shows how we would automatically map this to string
+	for i, a := range eventAbiSpec.Inputs {
+		if a.Indexed && !a.Hashed && a.EVM.GetSignature() == "bytes32" {
+			unpackedData[i] = new(string)
+		}
 	}
 
-	fmt.Printf("\n\nlogData = %+v\n\n", log.Data)
+	l.Debug("msg", fmt.Sprintf("Unpacking event data %v with this abi spec %v", log.Data, eventAbiSpec.Inputs), "eventName", eventName)
 
-	fmt.Printf("\n\neventAbiSpec.Inputs = %+v\n\n", eventAbiSpec.Inputs)
-	fmt.Printf("\n\ndecodedData = %+v\n\n", decodedData)
-
-	if err := abi.UnpackEvent(eventAbiSpec, log.Topics, log.Data, decodedData); err != nil {
-		return nil, errors.Wrap(err, "Could not decode log events")
+	// unpack event data (topics & data part)
+	if err := abi.UnpackEvent(eventAbiSpec, log.Topics, log.Data, unpackedData...); err != nil {
+		return nil, errors.Wrap(err, "Could not unpack event data")
 	}
-	fmt.Printf("\n\ndecodedData = %+v\n\n", decodedData)
 
-	// for each event item checks if it is in topics array (indexed) -> log.Topics
-	// or in data part (not indexed) -> log.Data
+	l.Debug("msg", fmt.Sprintf("Unpacked event data %v", unpackedData), "eventName", eventName)
+
+	// for each decoded item value, stores it in given item name
 	for i, input := range eventAbiSpec.Inputs {
-		if input.Indexed {
-			// get from log topics
-			if topicsLenght <= topicsInd {
-				return nil, errors.New("Not enough topics for event")
-			}
-			data[input.Name] = decodedData[topicsInd].(string)
-			topicsInd++
-		} else {
-			data[input.Name] = decodedData[i].(string)
+
+		l.Debug("msg", fmt.Sprintf("Unpacked data items: i = %v unpackedData[i] = %v reflect = %v input.Name = %v", i, unpackedData[i], reflect.TypeOf(unpackedData[i]).Elem(), input.Name), "eventName", eventName)
+
+		// go type switching to translate to string
+		switch v := unpackedData[i].(type) {
+		case *string:
+			data[input.Name] = *v
+		case *big.Int:
+			data[input.Name] = v.String()
+		case *big.Float:
+			data[input.Name] = v.String()
+		case *crypto.Address:
+			data[input.Name] = v.String()
+		case *bool:
+			data[input.Name] = fmt.Sprint(v)
+		case *int, *int8, *int16, *int32, *int64:
+			data[input.Name] = fmt.Sprint(v)
+		case *uint, *uint8, *uint16, *uint32, *uint64:
+			data[input.Name] = fmt.Sprint(v)
+		case *[]byte:
+			data[input.Name] = string(bytes.Trim(*v, "\x00"))
+		default:
+			return nil, fmt.Errorf("Could not match type %v for event item %v ", reflect.TypeOf(unpackedData[i]).Elem(), input.Name)
 		}
 	}
 

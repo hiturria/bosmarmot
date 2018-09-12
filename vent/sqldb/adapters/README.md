@@ -4,7 +4,8 @@ Vent adapters are relational dbms that can be used to store event & log data.
 
 ## Supported adapters:
 
-+ PostgreSQL v9 (and above) is the first fully supported adapter for Vent.
++ PostgreSQL v9 (and above) is fully supported.
++ SQLite v3 (and above) is fully supported.
 
 ## Considerations for adding new adapters:
 
