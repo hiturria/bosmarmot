@@ -325,8 +325,9 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 
 	// for each decoded item value, stores it in given item name
 	for i, input := range eventAbiSpec.Inputs {
+		typeName := reflect.TypeOf(unpackedData[i]).Elem()
 
-		l.Debug("msg", fmt.Sprintf("Unpacked data items: i = %v unpackedData[i] = %v reflect = %v input.Name = %v", i, unpackedData[i], reflect.TypeOf(unpackedData[i]).Elem(), input.Name), "eventName", eventName)
+		l.Debug("msg", fmt.Sprintf("Unpacked data items: unpackedData[%v] = %v, type = %v, input.Name = %v", i, unpackedData[i], typeName, input.Name), "eventName", eventName)
 
 		// go type switching to translate to string
 		switch v := unpackedData[i].(type) {
@@ -347,7 +348,7 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 		case *[]byte:
 			data[input.Name] = string(bytes.Trim(*v, "\x00"))
 		default:
-			return nil, fmt.Errorf("Could not match type %v for event item %v ", reflect.TypeOf(unpackedData[i]).Elem(), input.Name)
+			return nil, fmt.Errorf("Could not match type %v for event item %v ", typeName, input.Name)
 		}
 	}
 

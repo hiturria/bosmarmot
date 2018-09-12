@@ -43,8 +43,7 @@ func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 
 	// if there is a supplied Schema
 	if adapter.Schema != "" {
-		err = db.Ping()
-		if err != nil {
+		if err = db.Ping(); err != nil {
 			adapter.Log.Debug("msg", "Error opening database connection", "err", err)
 			return nil, err
 		}
@@ -52,20 +51,18 @@ func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 		var found bool
 
 		query := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_namespace n WHERE n.nspname = '%s');`, adapter.Schema)
-
 		adapter.Log.Debug("msg", "FIND SCHEMA", "query", query)
-		err := db.QueryRow(query).Scan(&found)
-		if err == nil {
+
+		if err := db.QueryRow(query).Scan(&found); err == nil {
 			if !found {
 				adapter.Log.Warn("msg", "Schema not found")
 			}
 			adapter.Log.Info("msg", "Creating schema")
 
 			query = fmt.Sprintf("CREATE SCHEMA %s;", adapter.Schema)
-
 			adapter.Log.Debug("msg", "CREATE SCHEMA", "query", query)
-			_, err = db.Exec(query)
-			if err != nil {
+
+			if _, err = db.Exec(query); err != nil {
 				if adapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedSchema) {
 					adapter.Log.Warn("msg", "Duplicated schema")
 					return db, nil
@@ -85,13 +82,12 @@ func (adapter *PostgresAdapter) TypeMapping(sqlColumnType types.SQLColumnType) (
 	if sqlDataType, ok := pgDataTypes[sqlColumnType]; ok {
 		return sqlDataType, nil
 	}
-	err := fmt.Errorf("datatype %v not recognized", sqlColumnType)
-	return "", err
+
+	return "", fmt.Errorf("datatype %v not recognized", sqlColumnType)
 }
 
-//SecureColumnName return columns between appropriate security containers
+// SecureColumnName return columns between appropriate security containers
 func (adapter *PostgresAdapter) SecureColumnName(columnName string) string {
-	//TODO: use ""?
 	return `"` + columnName + `"`
 }
 
@@ -219,21 +215,20 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable) types.UpsertQu
 func (adapter *PostgresAdapter) LastBlockIDQuery() string {
 	query := `
 		WITH ll AS (
-			SELECT MAX(%s) AS %s FROM %s.%s WHERE %s = $1 
+			SELECT MAX(%s) AS %s FROM %s.%s WHERE %s = $1
 		)
-		SELECT COALESCE(%s, '0') AS %s 
+		SELECT COALESCE(%s, '0') AS %s
 			FROM ll LEFT OUTER JOIN %s.%s log ON (ll.%s = log.%s);`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnNameId,                 //max
-		types.SQLColumnNameId,                 //as
-		adapter.Schema, types.SQLLogTableName, //from
-		types.SQLColumnNameEventFilter, //where
-
-		types.SQLColumnNameHeight,             //coalesce
-		types.SQLColumnNameHeight,             //as
-		adapter.Schema, types.SQLLogTableName, //from
-		types.SQLColumnNameId, types.SQLColumnNameId) //on
+		types.SQLColumnNameId,                 // max
+		types.SQLColumnNameId,                 // as
+		adapter.Schema, types.SQLLogTableName, // from
+		types.SQLColumnNameEventFilter,        // where
+		types.SQLColumnNameHeight,             // coalesce
+		types.SQLColumnNameHeight,             // as
+		adapter.Schema, types.SQLLogTableName, // from
+		types.SQLColumnNameId, types.SQLColumnNameId) // on
 
 }
 
@@ -242,29 +237,28 @@ func (adapter *PostgresAdapter) FindTableQuery() string {
 	query := "SELECT COUNT(*) found FROM %s.%s WHERE %s = $1;"
 
 	return fmt.Sprintf(query,
-		adapter.Schema, types.SQLDictionaryTableName, //from
-		types.SQLColumnNameTableName) //where
-
+		adapter.Schema, types.SQLDictionaryTableName, // from
+		types.SQLColumnNameTableName) // where
 }
 
 // TableDefinitionQuery returns a query with table structure
 func (adapter *PostgresAdapter) TableDefinitionQuery() string {
 	query := `
-		SELECT 
-			%s,%s,%s,%s 
-		FROM 
-			%s.%s 
-		WHERE 
-			%s=$1 
+		SELECT
+			%s,%s,%s,%s
+		FROM
+			%s.%s
+		WHERE
+			%s = $1
 		ORDER BY
 			%s;`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnNameColumnName, types.SQLColumnNameColumnType, //select
-		types.SQLColumnNameColumnLength, types.SQLColumnNamePrimaryKey, //select
-		adapter.Schema, types.SQLDictionaryTableName, //from
-		types.SQLColumnNameTableName,   //where
-		types.SQLColumnNameColumnOrder) //order by
+		types.SQLColumnNameColumnName, types.SQLColumnNameColumnType, // select
+		types.SQLColumnNameColumnLength, types.SQLColumnNamePrimaryKey, // select
+		adapter.Schema, types.SQLDictionaryTableName, // from
+		types.SQLColumnNameTableName,   // where
+		types.SQLColumnNameColumnOrder) // order by
 
 }
 
@@ -281,11 +275,9 @@ func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName st
 		adapter.SecureColumnName(columnName),
 		sqlType)
 
-	dictionaryQuery := fmt.Sprintf(
-		`INSERT INTO %s.%s 
-					(%s,%s,%s,%s,%s,%s) 
-				VALUES 
-					('%s','%s',%d,%d,%d,%d);`,
+	dictionaryQuery := fmt.Sprintf(`
+		INSERT INTO %s.%s (%s,%s,%s,%s,%s,%s)
+		VALUES ('%s','%s',%d,%d,%d,%d);`,
 
 		adapter.Schema, types.SQLDictionaryTableName,
 
@@ -293,27 +285,25 @@ func (adapter *PostgresAdapter) AlterColumnQuery(tableName string, columnName st
 		types.SQLColumnNameColumnType, types.SQLColumnNameColumnLength,
 		types.SQLColumnNamePrimaryKey, types.SQLColumnNameColumnOrder,
 
-		tableName, columnName,
-		sqlColumnType, length,
-		0, order)
+		tableName, columnName, sqlColumnType, length, 0, order)
 
 	return query, dictionaryQuery
 }
 
 // SelectRowQuery returns a query for selecting row values
 func (adapter *PostgresAdapter) SelectRowQuery(tableName string, fields string, indexValue string) string {
-	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE %s='%s';", fields, adapter.Schema, tableName, types.SQLColumnNameHeight, indexValue)
+	return fmt.Sprintf("SELECT %s FROM %s.%s WHERE %s = '%s';", fields, adapter.Schema, tableName, types.SQLColumnNameHeight, indexValue)
 }
 
 // SelectLogQuery returns a query for selecting all tables involved in a block trn
 func (adapter *PostgresAdapter) SelectLogQuery() string {
 	query := `
-		SELECT DISTINCT %s,%s FROM %s.%s l  WHERE %s = $1 AND %s = $2;`
+		SELECT DISTINCT %s,%s FROM %s.%s l WHERE %s = $1 AND %s = $2;`
 
 	return fmt.Sprintf(query,
 		types.SQLColumnNameTableName, types.SQLColumnNameEventName, // select
-		adapter.Schema, types.SQLLogTableName, //from
-		types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) //where
+		adapter.Schema, types.SQLLogTableName, // from
+		types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) // where
 }
 
 // InsertLogQuery returns a query to insert a row in log table
@@ -323,9 +313,9 @@ func (adapter *PostgresAdapter) InsertLogQuery() string {
 		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5);`
 
 	return fmt.Sprintf(query,
-		adapter.Schema, types.SQLLogTableName, //insert
-		types.SQLColumnNameTimeStamp, types.SQLColumnNameRowCount, types.SQLColumnNameTableName, //fields
-		types.SQLColumnNameEventName, types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) //fields
+		adapter.Schema, types.SQLLogTableName, // insert
+		types.SQLColumnNameTimeStamp, types.SQLColumnNameRowCount, types.SQLColumnNameTableName, // fields
+		types.SQLColumnNameEventName, types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) // fields
 }
 
 // ErrorEquals verify if an error is of a given SQL type

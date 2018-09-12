@@ -6,18 +6,53 @@ import (
 	"testing"
 	"time"
 
+	"os"
+
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/sqldb"
 	"github.com/monax/bosmarmot/vent/types"
-	"os"
 )
+
+var letters = []rune("abcdefghijklmnopqrstuvwxyz")
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-var letters = []rune("abcdefghijklmnopqrstuvwxyz")
+// NewTestDB creates a database connection for testing
+func NewTestDB(t *testing.T, dbAdapter string) (*sqldb.SQLDB, func()) {
+	t.Helper()
+
+	log := logger.NewLogger("debug")
+	cfg := config.DefaultFlags()
+	randName := randString(10)
+
+	switch dbAdapter {
+	case types.PostgresDB:
+		cfg.DBSchema = fmt.Sprintf("test_%s", randName)
+	case types.SQLiteDB:
+		cfg.DBAdapter = dbAdapter
+		cfg.DBURL = fmt.Sprintf("./%s.sqlite", randName)
+	default:
+		t.Fatal("invalid database adapter")
+	}
+
+	db, err := sqldb.NewSQLDB(cfg.DBAdapter, cfg.DBURL, cfg.DBSchema, log)
+	if err != nil {
+		t.Fatal(err.Error())
+	}
+
+	return db, func() {
+		db.Close()
+
+		if dbAdapter == types.SQLiteDB {
+			os.Remove(cfg.DBURL)
+		} else {
+			destroySchema(db, cfg.DBSchema)
+		}
+	}
+}
 
 func randString(n int) string {
 	b := make([]rune, n)
@@ -41,39 +76,4 @@ func destroySchema(db *sqldb.SQLDB, dbSchema string) error {
 	}
 
 	return nil
-}
-
-func deleteFile(dbURL, schema string) error {
-	url := dbURL
-
-	if schema != "" {
-		url = url + "_" + schema
-	}
-	url += ".sqlite"
-	return os.Remove(url)
-}
-
-// NewTestDB creates a database connection for testing
-func NewTestDB(t *testing.T, database string) (*sqldb.SQLDB, func()) {
-	t.Helper()
-
-	cfg := config.DefaultFlags(database)
-
-	dbSchema := fmt.Sprintf("test_%s", randString(10))
-	log := logger.NewLogger("debug")
-
-	db, err := sqldb.NewSQLDB(cfg.DBAdapter, cfg.DBURL, dbSchema, log)
-	if err != nil {
-		t.Fatal()
-	}
-
-	return db, func() {
-		if database != types.SQLiteDB {
-			destroySchema(db, dbSchema)
-			db.Close()
-		} else {
-			db.Close()
-			deleteFile(cfg.DBURL, dbSchema)
-		}
-	}
 }

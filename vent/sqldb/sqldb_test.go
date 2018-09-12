@@ -3,7 +3,6 @@
 package sqldb_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/monax/bosmarmot/vent/sqlsol"
@@ -13,9 +12,7 @@ import (
 )
 
 func TestSynchronizeDB(t *testing.T) {
-
-	//-------------------------------POSTGRES-----------------------------------------------------------------------
-	t.Run("POSTGRES: Successfully creates default schema and system tables and synchronizes db", func(t *testing.T) {
+	t.Run("POSTGRES: successfully creates database tables and synchronizes db", func(t *testing.T) {
 		goodJSON := test.GoodJSONConfFile(t)
 
 		byteValue := []byte(goodJSON)
@@ -31,7 +28,6 @@ func TestSynchronizeDB(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	//----------------------------------SQLITE--------------------------------------------------------------------
 	t.Run("SQLITE: successfully creates database tables and synchronizes db", func(t *testing.T) {
 		goodJSON := test.GoodJSONConfFile(t)
 
@@ -51,71 +47,53 @@ func TestSynchronizeDB(t *testing.T) {
 
 func TestSetBlock(t *testing.T) {
 	t.Run("POSTGRES: successfully inserts a block", func(t *testing.T) {
-
 		db, closeDB := test.NewTestDB(t, types.PostgresDB)
 		defer closeDB()
 
 		errp := db.Ping()
 		require.NoError(t, errp)
 
-		//new
-		fmt.Println()
-		fmt.Println("NEW---------------------------------------------------------------")
+		// new
 		str, dat := getBlock()
 		err := db.SetBlock(str, dat)
 		require.NoError(t, err)
 
-		//read
-		fmt.Println()
-		fmt.Println("READ---------------------------------------------------------------")
-		id, erri := db.GetLastBlockID("TEST")
-		fmt.Println("id=", id)
-		require.NoError(t, erri)
-		eventData, erre := db.GetBlock("TEST", dat.Block)
-		fmt.Println(eventData)
-		require.NoError(t, erre)
+		// read
+		_, err = db.GetLastBlockID("TEST")
+		require.NoError(t, err)
 
-		//alter
-		fmt.Println()
-		fmt.Println("ALTER---------------------------------------------------------------")
+		_, err = db.GetBlock("TEST", dat.Block)
+		require.NoError(t, err)
+
+		// alter
 		str, dat = getAlterBlock()
 		err = db.SetBlock(str, dat)
 		require.NoError(t, err)
-
 	})
 
 	t.Run("SQLITE: successfully inserts a block", func(t *testing.T) {
-
 		db, closeDB := test.NewTestDB(t, types.SQLiteDB)
 		defer closeDB()
 
 		errp := db.Ping()
 		require.NoError(t, errp)
 
-		//new
-		fmt.Println()
-		fmt.Println("NEW---------------------------------------------------------------")
+		// new
 		str, dat := getBlock()
 		err := db.SetBlock(str, dat)
 		require.NoError(t, err)
 
-		//read
-		fmt.Println()
-		fmt.Println("READ---------------------------------------------------------------")
-		id, erri := db.GetLastBlockID("TEST")
-		fmt.Println("id=", id)
-		require.NoError(t, erri)
-		eventData, erre := db.GetBlock("TEST", dat.Block)
-		fmt.Println(eventData)
-		require.NoError(t, erre)
+		// read
+		_, err = db.GetLastBlockID("TEST")
+		require.NoError(t, err)
 
-		//alter
-		fmt.Println()
-		fmt.Println("ALTER---------------------------------------------------------------")
+		_, err = db.GetBlock("TEST", dat.Block)
+		require.NoError(t, err)
+
+		// alter
 		str, dat = getAlterBlock()
 		err = db.SetBlock(str, dat)
 		require.NoError(t, err)
-
 	})
 
 	t.Run("POSTGRES: successfully creates a table", func(t *testing.T) {
@@ -165,11 +143,9 @@ func TestSetBlock(t *testing.T) {
 		err := db.SynchronizeDB(tables)
 		require.NoError(t, err)
 	})
-
 }
 
 func getBlock() (types.EventTables, types.EventData) {
-
 	//table 1
 	cols1 := make(map[string]types.SQLTableColumn)
 	cols1["ID"] = types.SQLTableColumn{Name: "test_id", Type: types.SQLColumnTypeInt, Primary: true, Order: 1}
@@ -244,7 +220,6 @@ func getBlock() (types.EventTables, types.EventData) {
 }
 
 func getAlterBlock() (types.EventTables, types.EventData) {
-
 	//table 3
 	cols3 := make(map[string]types.SQLTableColumn)
 	cols3["Code"] = types.SQLTableColumn{Name: "_height", Type: types.SQLColumnTypeVarchar, Length: 100, Primary: true, Order: 1}

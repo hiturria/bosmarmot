@@ -37,7 +37,7 @@ const SQLDictionaryTableName = "_vent_dictionary"
 
 // defined fixed sql column names in log table
 const (
-	//log
+	// log
 	SQLColumnNameId          = "_id"
 	SQLColumnNameTimeStamp   = "_timestamp"
 	SQLColumnNameEventName   = "_eventname"
@@ -45,17 +45,17 @@ const (
 	SQLColumnNameEventFilter = "_eventfilter"
 	SQLColumnNameHeight      = "_height"
 
-	//common
+	// common
 	SQLColumnNameTableName = "_tablename"
 
-	//dictionary
+	// dictionary
 	SQLColumnNameColumnName   = "_columnname"
 	SQLColumnNameColumnType   = "_columntype"
 	SQLColumnNameColumnLength = "_columnlength"
 	SQLColumnNamePrimaryKey   = "_primarykey"
 	SQLColumnNameColumnOrder  = "_columnorder"
 
-	//auxiliary not in DB
+	// auxiliar (not in DB)
 	SQLColumnNameIndex     = "_index"
 	SQLColumnNameTxHash    = "_txhash"
 	SQLColumnNameEventType = "_eventtype"

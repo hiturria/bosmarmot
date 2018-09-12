@@ -28,7 +28,7 @@ jobs:
       environment:
         POSTGRES_USER: user
         POSTGRES_PASSWORD: pass
-        POSTGRES_DB: bosmarmot
+        POSTGRES_DB: vent
 
     steps:
       - checkout

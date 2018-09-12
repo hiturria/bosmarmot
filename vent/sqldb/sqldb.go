@@ -13,7 +13,7 @@ import (
 // SQLDB implements the access to a sql database
 type SQLDB struct {
 	DB        *sql.DB
-	DBAdapter DBAdapter
+	DBAdapter adapters.DBAdapter
 	Schema    string
 	Log       *logger.Logger
 }
@@ -31,14 +31,8 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 	switch dbAdapter {
 	case types.PostgresDB:
 		db.DBAdapter = adapters.NewPostgresAdapter(safe(schema), log)
-
 	case types.SQLiteDB:
 		db.DBAdapter = adapters.NewSQLiteAdapter(log)
-		if schema != "" {
-			url = url + "_" + schema
-		}
-		url += ".sqlite"
-
 	default:
 		return nil, errors.New("invalid database adapter")
 	}
@@ -58,7 +52,7 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 	db.Log.Info("msg", "Initializing DB")
 	eventTables := db.getSysTablesDefinition()
 
-	//IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (1)
+	// IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (1)
 	table := eventTables[types.SQLDictionaryTableName]
 	if err = db.createTable(table); err != nil {
 		if !db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
@@ -67,7 +61,7 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 		}
 	}
 
-	//IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (2)
+	// IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (2)
 	table = eventTables[types.SQLLogTableName]
 	if err = db.createTable(table); err != nil {
 		if !db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
@@ -203,7 +197,7 @@ loop:
 		}
 	}
 
-	//------------------------error handling----------------------
+	// error handling
 	if err != nil {
 		// rollback error
 		if errRb := tx.Rollback(); errRb != nil {

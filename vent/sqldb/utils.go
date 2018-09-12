@@ -35,7 +35,7 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 	dicCol := make(map[string]types.SQLTableColumn)
 	logCol := make(map[string]types.SQLTableColumn)
 
-	//log table
+	// log table
 	logCol["id"] = types.SQLTableColumn{
 		Name:    types.SQLColumnNameId,
 		Type:    types.SQLColumnTypeSerial,
@@ -89,7 +89,7 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 		Order:   7,
 	}
 
-	//dictionary table
+	// dictionary table
 	dicCol["tableName"] = types.SQLTableColumn{
 		Name:    types.SQLColumnNameTableName,
 		Type:    types.SQLColumnTypeVarchar,
@@ -138,7 +138,7 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 		Order:   6,
 	}
 
-	//add tables
+	// add tables
 	tables[types.SQLLogTableName] = types.SQLTable{
 		Name:    types.SQLLogTableName,
 		Columns: logCol,
@@ -296,19 +296,17 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 	// sort columns
 	columns := len(table.Columns)
 	sortedColumns := make([]types.SQLTableColumn, columns)
+
 	for _, tableColumn := range table.Columns {
 		if tableColumn.Order <= 0 {
 			db.Log.Debug("msg", "column_order <=0")
 			return fmt.Errorf("table definition error,%s has column_order <=0 (minimum value = 1)", tableColumn.Name)
-
 		} else if tableColumn.Order-1 > columns {
 			db.Log.Debug("msg", "column_order > total_columns")
 			return fmt.Errorf("table definition error, %s has column_order > total_columns", tableColumn.Name)
-
 		} else if sortedColumns[tableColumn.Order-1].Order != 0 {
 			db.Log.Debug("msg", "duplicated column_oder")
 			return fmt.Errorf("table definition error, %s and %s have duplicated column_order", sortedColumns[tableColumn.Order-1].Name, tableColumn.Name)
-
 		} else {
 			sortedColumns[tableColumn.Order-1] = tableColumn
 		}
@@ -354,6 +352,7 @@ func (db *SQLDB) getBlockTables(eventFilter string, block string) (types.EventTa
 
 	query := clean(db.DBAdapter.SelectLogQuery())
 	db.Log.Debug("msg", "QUERY LOG", "query", query, "value", block)
+
 	rows, err := db.DB.Query(query, eventFilter, block)
 	if err != nil {
 		db.Log.Debug("msg", "Error querying log", "err", err)
@@ -385,6 +384,7 @@ func (db *SQLDB) getBlockTables(eventFilter string, block string) (types.EventTa
 
 		tables[eventName] = table
 	}
+
 	return tables, nil
 }
 

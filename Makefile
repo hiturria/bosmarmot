@@ -144,7 +144,7 @@ build_ci: check test build
 # Tag the current HEAD commit with the current release defined in
 # ./release/release.go
 .PHONY: tag_release
-tag_release: test check 
+tag_release: test check
 	@tests/scripts/tag_release.sh
 
 # If the checked out commit is tagged with a version then release to github
