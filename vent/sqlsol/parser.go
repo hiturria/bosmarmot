@@ -10,7 +10,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Parser contains EventTable, EventSpecification and Abi spec definitions
+// Parser contains EventTable, Event & Abi specifications
 type Parser struct {
 	Tables    types.EventTables
 	EventSpec types.EventSpec
@@ -48,12 +48,12 @@ func NewParser(byteValue []byte) (*Parser, error) {
 	}, nil
 }
 
-// GetAbiSpec returns the abi event specification
+// GetAbiSpec returns the abi specification
 func (p *Parser) GetAbiSpec() *abi.AbiSpec {
 	return p.AbiSpec
 }
 
-// GetEventSpec returns the event specification structure
+// GetEventSpec returns the event specification
 func (p *Parser) GetEventSpec() types.EventSpec {
 	return p.EventSpec
 }
@@ -109,14 +109,14 @@ func (p *Parser) SetTableName(eventName, tableName string) error {
 	return fmt.Errorf("SetTableName: eventName does not exists as a table in SQL table structure: %s ", eventName)
 }
 
-// mapToTable gets a sqlsol event configuration stream,
+// mapToTable gets a sqlsol specification stream,
 // parses contents, maps event types to SQL column types
-// and fills Event table structure with table and columns info
+// and fills Event tables structures with table and columns info
 func mapToTable(byteValue []byte) (types.EventTables, types.EventSpec, error) {
 	tables := make(types.EventTables)
 	eventSpec := types.EventSpec{}
 
-	// parses json config stream
+	// parses json specification stream
 	if err := json.Unmarshal(byteValue, &eventSpec); err != nil {
 		return nil, nil, err
 	}
@@ -156,7 +156,7 @@ func mapToTable(byteValue []byte) (types.EventTables, types.EventSpec, error) {
 			}
 		}
 
-		// add global columns to column definition
+		// add global columns to columns definition
 		for k, v := range globalColumns {
 			columns[k] = v
 		}
@@ -190,8 +190,7 @@ func mapToTable(byteValue []byte) (types.EventTables, types.EventSpec, error) {
 	return tables, eventSpec, nil
 }
 
-// getSQLType maps event input types with corresponding
-// SQL column types
+// getSQLType maps event input types with corresponding SQL column types
 func getSQLType(eventInputType string) (types.SQLColumnType, int, error) {
 	if strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeInt) ||
 		strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeUInt) {
@@ -212,13 +211,8 @@ func getSQLType(eventInputType string) (types.SQLColumnType, int, error) {
 	}
 }
 
-// getGlobalColumns returns global columns for event table structures
+// getGlobalColumns returns global columns for event table structures,
 // these columns will be part of every SQL event table to relate data with source events
-// TODO:
-// check if all this is necessary, or what is really needed
-// depending on how data is to be retrieved from event tables
-// is the way we have to build tables, logs
-// and relationship between them
 func getGlobalColumns() map[string]types.SQLTableColumn {
 	globalColumns := make(map[string]types.SQLTableColumn)
 

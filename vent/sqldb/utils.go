@@ -29,7 +29,7 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 	return true, nil
 }
 
-// getSysTablesDefinition returns log structures
+// getSysTablesDefinition returns log & dictionary structures
 func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 	tables := make(types.EventTables)
 	dicCol := make(map[string]types.SQLTableColumn)
@@ -217,7 +217,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 	return table, nil
 }
 
-// alterTable alters the structure of a SQL table
+// alterTable alters the structure of a SQL table & add info to the dictionary
 func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 	db.Log.Info("msg", "Altering table", "value", newTable.Name)
 
@@ -268,7 +268,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 	return nil
 }
 
-// getSelectQuery builds a select query for a specific SQL table
+// getSelectQuery builds a select query for a specific SQL table and a given block
 func (db *SQLDB) getSelectQuery(table types.SQLTable, height string) (string, error) {
 	fields := ""
 
@@ -287,7 +287,7 @@ func (db *SQLDB) getSelectQuery(table types.SQLTable, height string) (string, er
 	return query, nil
 }
 
-// createTable creates a new table in the default schema
+// createTable creates a new table
 func (db *SQLDB) createTable(table types.SQLTable) error {
 	db.Log.Info("msg", "Creating Table", "value", table.Name)
 
@@ -345,8 +345,8 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 	return nil
 }
 
-// getBlockTables return all SQL tables that had been involved
-// in a given batch transaction for a specific block id
+// getBlockTables return all SQL tables that have been involved
+// in a given batch transaction for a specific block & events filter
 func (db *SQLDB) getBlockTables(eventFilter, block string) (types.EventTables, error) {
 	tables := make(types.EventTables)
 
@@ -361,8 +361,7 @@ func (db *SQLDB) getBlockTables(eventFilter, block string) (types.EventTables, e
 	defer rows.Close()
 
 	for rows.Next() {
-		var eventName string
-		var tableName string
+		var eventName, tableName string
 		var table types.SQLTable
 
 		err = rows.Scan(&tableName, &eventName)

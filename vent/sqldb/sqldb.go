@@ -90,7 +90,7 @@ func (db *SQLDB) Ping() error {
 	return nil
 }
 
-// GetLastBlockID returns last inserted blockId from log table
+// GetLastBlockID returns last inserted blockId for a given events filter from log table
 func (db *SQLDB) GetLastBlockID(eventFilter string) (string, error) {
 	query := clean(db.DBAdapter.LastBlockIDQuery())
 	id := ""
@@ -105,7 +105,7 @@ func (db *SQLDB) GetLastBlockID(eventFilter string) (string, error) {
 	return id, nil
 }
 
-// SynchronizeDB synchronize config structures with SQL database table structures
+// SynchronizeDB synchronize db tables structures from given tables specifications
 func (db *SQLDB) SynchronizeDB(eventTables types.EventTables) error {
 	db.Log.Info("msg", "Synchronizing DB")
 
@@ -156,7 +156,7 @@ loop:
 	for eventName, table := range eventTables {
 		safeTable = safe(table.Name)
 
-		// insert in logdet table
+		// insert in log table
 		dataRows := eventData.Tables[table.Name]
 		length := len(dataRows)
 		db.Log.Debug("msg", "INSERT LOG", "query", logQuery, "value", fmt.Sprintf("rows = %d tableName = %s eventName = %s filter = %s block = %s", length, safeTable, eventName, table.Filter, eventData.Block))
@@ -166,7 +166,7 @@ loop:
 			return err
 		}
 
-		// get table upsert query
+		// get row upsert query
 		uQuery := db.DBAdapter.UpsertQuery(table)
 		query := clean(uQuery.Query)
 
@@ -241,7 +241,7 @@ loop:
 	return nil
 }
 
-// GetBlock returns a table's structure and row data for given block id
+// GetBlock returns all tables structures and row data for given block & events filter
 func (db *SQLDB) GetBlock(eventFilter, block string) (types.EventData, error) {
 	var data types.EventData
 	data.Block = block

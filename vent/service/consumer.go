@@ -143,6 +143,7 @@ func (c *Consumer) Run() error {
 				BlockRange: rpcevents.NewBlockRange(rpcevents.AbsoluteBound(startingBlock), rpcevents.LatestBound()),
 			}
 
+			// gets events with given filter & block range based on last processed block taken from database
 			evs, err := cli.GetEvents(context.Background(), request)
 			if err != nil {
 				doneCh <- errors.Wrapf(err, "Error connecting to events stream (filter: %s)", spec.Filter)
@@ -152,7 +153,7 @@ func (c *Consumer) Run() error {
 			// create a fresh new structure to store block data
 			blockData := sqlsol.NewBlockData()
 
-			// start listening to events
+			// getting events
 			for {
 				if c.Closing {
 					break
@@ -177,11 +178,11 @@ func (c *Consumer) Run() error {
 
 				// get event data
 				for _, event := range resp.Events {
+
 					// a fresh new row to store column/value data
 					row := make(types.EventDataRow)
 
-					// GetHeader gets Header data for the given event
-					// GetLog gets log event data for the given event
+					// get header & log data for the given event
 					eventHeader := event.GetHeader()
 					eventLog := event.GetLog()
 
@@ -194,14 +195,15 @@ func (c *Consumer) Run() error {
 						return
 					}
 
-					// ------------------------------------------------
-					// if source block number is different than current...
+					// if source block number is different than current
 					// upsert rows in specific SQL event tables and update block number
 					eventBlockID := fmt.Sprintf("%v", eventHeader.GetHeight())
 
 					if strings.TrimSpace(fromBlock) != strings.TrimSpace(eventBlockID) {
+
 						// store block data in SQL tables (if any)
 						if blockData.PendingRows(fromBlock) {
+
 							// gets block data to upsert
 							blk := blockData.GetBlockData()
 
@@ -226,16 +228,14 @@ func (c *Consumer) Run() error {
 					}
 
 					// for each data element, maps to SQL columnName and gets its value
-					// if there is no matching column for event item,
-					// that item doesn't need to be stored in db
+					// if there is no matching column for the item, it doesn't need to be store in db
 					for k, v := range eventData {
 						if columnName, err := parser.GetColumnName(eventName, k); err == nil {
 							row[columnName] = v
 						}
 					}
 
-					// so, the row is filled with data, update structure
-					// store block number
+					// so, the row is filled with data, update block number in structure
 					blockData.SetBlockID(fromBlock)
 
 					// set row in structure
@@ -245,6 +245,7 @@ func (c *Consumer) Run() error {
 
 			// store pending block data in SQL tables (if any)
 			if blockData.PendingRows(fromBlock) {
+
 				// gets block data to upsert
 				blk := blockData.GetBlockData()
 
@@ -287,7 +288,7 @@ func (c *Consumer) Shutdown() {
 	c.Closing = true
 }
 
-// decodeEvent decodes event data
+// decodeEvent unpacks & decodes event data
 func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiSpec *abi.AbiSpec, l *logger.Logger) (map[string]string, error) {
 
 	// to prepare decoded data and map to event item name
