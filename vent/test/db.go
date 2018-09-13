@@ -3,10 +3,9 @@ package test
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
-
-	"os"
 
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
