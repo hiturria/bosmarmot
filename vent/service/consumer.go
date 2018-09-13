@@ -57,7 +57,7 @@ func NewConsumer(cfg *config.Flags, log *logger.Logger) *Consumer {
 func (c *Consumer) Run() error {
 	c.Log.Info("msg", "Reading events config file")
 
-	byteValue, err := readFile(c.Config.CfgFile)
+	byteValue, err := readFile(c.Config.SpecFile)
 	if err != nil {
 		return errors.Wrap(err, "Error reading events config file")
 	}

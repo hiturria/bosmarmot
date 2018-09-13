@@ -49,10 +49,10 @@ go install ./vent
 vent --help
 
 # Run vent command with postgres adapter:
-vent --db-adapter="postgres" --db-url="postgres://user:pass@localhost:5432/vent?sslmode=disable" --db-schema="vent" --grpc-addr="localhost:10997" --log-level="debug" --cfg-file="<sqlsol conf file path>"
+vent --db-adapter="postgres" --db-url="postgres://user:pass@localhost:5432/vent?sslmode=disable" --db-schema="vent" --grpc-addr="localhost:10997" --log-level="debug" --spec-file="<sqlsol specification file path>"
 
 # Run vent command with sqlite adapter:
-vent --db-adapter="sqlite" --db-url="./vent.sqlite" --grpc-addr="localhost:10997" --log-level="debug" --cfg-file="<sqlsol conf file path>"
+vent --db-adapter="sqlite" --db-url="./vent.sqlite" --grpc-addr="localhost:10997" --log-level="debug" --spec-file="<sqlsol specification file path>"
 ```
 
 Configuration Flags:
@@ -62,4 +62,4 @@ Configuration Flags:
 + `db-schema`: PostgreSQL database schema or empty for SQLite
 + `grpc-addr`: Address to listen to gRPC Hyperledger Burrow server
 + `log-level`: Logging level (error, warn, info, debug)
-+ `cfg-file`: SQLSol specification json file (full path)
++ `spec-file`: SQLSol specification json file (full path)

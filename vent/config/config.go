@@ -11,7 +11,7 @@ type Flags struct {
 	DBSchema  string
 	GRPCAddr  string
 	LogLevel  string
-	CfgFile   string
+	SpecFile  string
 }
 
 // DefaultFlags returns a configuration with default values
@@ -22,6 +22,6 @@ func DefaultFlags() *Flags {
 		DBSchema:  "vent",
 		GRPCAddr:  "localhost:10997",
 		LogLevel:  "debug",
-		CfgFile:   "",
+		SpecFile:  "",
 	}
 }

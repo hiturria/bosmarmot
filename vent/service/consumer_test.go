@@ -78,7 +78,7 @@ func TestRun(t *testing.T) {
 	cfg := config.DefaultFlags()
 
 	cfg.DBSchema = db.Schema
-	cfg.CfgFile = os.Getenv("GOPATH") + "/src/github.com/monax/bosmarmot/vent/test/sqlsol_example.json"
+	cfg.SpecFile = os.Getenv("GOPATH") + "/src/github.com/monax/bosmarmot/vent/test/sqlsol_example.json"
 	cfg.GRPCAddr = testConfig.RPC.GRPC.ListenAddress
 
 	log := logger.NewLogger(cfg.LogLevel)
