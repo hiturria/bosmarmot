@@ -33,7 +33,7 @@ func NewTestDB(t *testing.T, dbAdapter string) (*sqldb.SQLDB, func()) {
 		cfg.DBSchema = fmt.Sprintf("test_%s", randName)
 	case types.SQLiteDB:
 		cfg.DBAdapter = dbAdapter
-		cfg.DBURL = fmt.Sprintf("./%s.sqlite", randName)
+		cfg.DBURL = fmt.Sprintf("./test_%s.sqlite", randName)
 	default:
 		t.Fatal("invalid database adapter")
 	}
@@ -44,13 +44,13 @@ func NewTestDB(t *testing.T, dbAdapter string) (*sqldb.SQLDB, func()) {
 	}
 
 	return db, func() {
-		db.Close()
-
 		if dbAdapter == types.SQLiteDB {
 			os.Remove(cfg.DBURL)
 		} else {
 			destroySchema(db, cfg.DBSchema)
 		}
+
+		db.Close()
 	}
 }
 
