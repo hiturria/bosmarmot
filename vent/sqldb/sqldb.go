@@ -242,7 +242,7 @@ loop:
 }
 
 // GetBlock returns a table's structure and row data for given block id
-func (db *SQLDB) GetBlock(eventFilter string, block string) (types.EventData, error) {
+func (db *SQLDB) GetBlock(eventFilter, block string) (types.EventData, error) {
 	var data types.EventData
 	data.Block = block
 	data.Tables = make(map[string]types.EventDataTable)

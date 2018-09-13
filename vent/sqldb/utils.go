@@ -347,7 +347,7 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 
 // getBlockTables return all SQL tables that had been involved
 // in a given batch transaction for a specific block id
-func (db *SQLDB) getBlockTables(eventFilter string, block string) (types.EventTables, error) {
+func (db *SQLDB) getBlockTables(eventFilter, block string) (types.EventTables, error) {
 	tables := make(types.EventTables)
 
 	query := clean(db.DBAdapter.SelectLogQuery())
