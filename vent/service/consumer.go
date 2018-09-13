@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hyperledger/burrow/crypto"
 	"github.com/hyperledger/burrow/execution/evm/abi"
@@ -155,6 +156,8 @@ func (c *Consumer) Run() error {
 			for {
 				if c.Closing {
 					break
+				} else {
+					time.Sleep(100 * time.Millisecond)
 				}
 
 				c.Log.Info("msg", "Waiting for events", "filter", spec.Filter)
