@@ -45,12 +45,12 @@ func NewTestDB(t *testing.T, dbAdapter string) (*sqldb.SQLDB, func()) {
 
 	return db, func() {
 		if dbAdapter == types.SQLiteDB {
+			db.Close()
 			os.Remove(cfg.DBURL)
 		} else {
 			destroySchema(db, cfg.DBSchema)
+			db.Close()
 		}
-
-		db.Close()
 	}
 }
 
