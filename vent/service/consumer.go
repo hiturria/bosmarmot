@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/hyperledger/burrow/crypto"
 	"github.com/hyperledger/burrow/execution/evm/abi"
@@ -305,20 +306,10 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 	data[eventIndexLabel] = fmt.Sprintf("%v", header.GetIndex())
 	data[eventHeightLabel] = fmt.Sprintf("%v", header.GetHeight())
 	data[eventTypeLabel] = header.GetEventType().String()
-	data[eventTxHashLabel] = string(header.TxHash)
+	data[eventTxHashLabel] = fmt.Sprintf("%v", header.TxHash)
 
 	// build expected type array with go types from abi spec to get log event values
 	unpackedData := abi.GetPackingTypes(eventAbiSpec.Inputs)
-
-	// any indexed string (or dynamic array) will be hashed, so we might want to store strings
-	// in bytes32. This shows how we would automatically map this to string
-	for i, a := range eventAbiSpec.Inputs {
-		if a.Indexed && !a.Hashed && a.EVM.GetSignature() == "bytes32" {
-			unpackedData[i] = new(string)
-		}
-	}
-
-	l.Debug("msg", fmt.Sprintf("Unpacking event data %v with this abi spec %v", log.Data, eventAbiSpec.Inputs), "eventName", eventName)
 
 	// unpack event data (topics & data part)
 	if err := abi.UnpackEvent(eventAbiSpec, log.Topics, log.Data, unpackedData...); err != nil {
@@ -366,6 +357,22 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 			data[input.Name] = string(bytes.Trim(*v, "\x00"))
 		default:
 			return nil, fmt.Errorf("Could not match type %v for event item %v ", typeName, input.Name)
+		}
+
+		dataItem := data[input.Name]
+
+		// if the rare case that a not valid UTF8 string is found, convert characters to hexa
+		if !utf8.ValidString(dataItem) {
+
+			l.Warn("msg", fmt.Sprintf("Illegal UTF8 string: unpackedData[%v] = %v, tostring = %v, input.Name = %v", i, typeName, data[input.Name], input.Name), "eventName", eventName)
+
+			s := make([]string, 0, len(dataItem))
+
+			for i := 0; i < len(dataItem); i++ {
+				s = append(s, fmt.Sprintf("%x", dataItem[i]))
+			}
+
+			data[input.Name] = strings.ToUpper(strings.Join(s, ""))
 		}
 
 		l.Debug("msg", fmt.Sprintf("Unpacked data items: unpackedData[%v] = %v, type = %v, tostring = %v, input.Name = %v", i, unpackedData[i], typeName, data[input.Name], input.Name), "eventName", eventName)
