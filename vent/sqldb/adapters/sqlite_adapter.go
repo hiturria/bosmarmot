@@ -18,6 +18,7 @@ var sqliteDataTypes = map[types.SQLColumnType]string{
 	types.SQLColumnTypeText:      "TEXT",
 	types.SQLColumnTypeVarchar:   "VARCHAR",
 	types.SQLColumnTypeTimeStamp: "TIMESTAMP",
+	types.SQLColumnTypeNumeric:   "NUMERIC",
 }
 
 // SQLiteAdapter implements DBAdapter for SQLiteDB
@@ -66,7 +67,7 @@ func (adapter *SQLiteAdapter) CreateTableQuery(tableName string, columns []types
 	hasSerial := false
 
 	for i, tableColumn := range columns {
-		secureColumn := fmt.Sprintf("%s", adapter.SecureColumnName(tableColumn.Name))
+		secureColumn := adapter.SecureColumnName(tableColumn.Name)
 		sqlType, _ := adapter.TypeMapping(tableColumn.Type)
 		pKey := 0
 
@@ -93,7 +94,7 @@ func (adapter *SQLiteAdapter) CreateTableQuery(tableName string, columns []types
 			if primaryKey != "" {
 				primaryKey += ", "
 			}
-			primaryKey += fmt.Sprintf("%s", secureColumn)
+			primaryKey += secureColumn
 		}
 
 		dictionaryValues += fmt.Sprintf("('%s','%s',%d,%d,%d,%d)",
@@ -145,7 +146,7 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable) types.UpsertQuer
 	i := 0
 
 	for _, tableColumn := range table.Columns {
-		secureColumn := fmt.Sprintf("%s", adapter.SecureColumnName(tableColumn.Name))
+		secureColumn := adapter.SecureColumnName(tableColumn.Name)
 		cKey = 0
 		i++
 
@@ -258,7 +259,7 @@ func (adapter *SQLiteAdapter) AlterColumnQuery(tableName, columnName string, sql
 
 	query := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s;",
 		tableName,
-		fmt.Sprintf("%s", adapter.SecureColumnName(columnName)),
+		adapter.SecureColumnName(columnName),
 		sqlType)
 
 	dictionaryQuery := fmt.Sprintf(`
@@ -312,19 +313,14 @@ func (adapter *SQLiteAdapter) ErrorEquals(err error, sqlErrorType types.SQLError
 		switch sqlErrorType {
 		case types.SQLErrorTypeGeneric:
 			return true
-
 		case types.SQLErrorTypeDuplicatedColumn:
 			return err.Code == 1 && strings.Contains(errDescription, "duplicate column")
-
 		case types.SQLErrorTypeDuplicatedTable:
 			return err.Code == 1 && strings.Contains(errDescription, "table") && strings.Contains(errDescription, "already exists")
-
 		case types.SQLErrorTypeUndefinedTable:
 			return err.Code == 1 && strings.Contains(errDescription, "no such table")
-
 		case types.SQLErrorTypeUndefinedColumn:
 			return err.Code == 1 && strings.Contains(errDescription, "table") && strings.Contains(errDescription, "has no column named")
-
 		case types.SQLErrorTypeInvalidType:
 			// NOT SUPPORTED
 			return false

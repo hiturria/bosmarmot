@@ -183,7 +183,7 @@ loop:
 			db.Log.Debug("msg", "UPSERT", "query", query, "value", value)
 			_, err = tx.Exec(query, pointers...)
 			if err != nil {
-				db.Log.Debug("msg", "Error Upserting", "err", err)
+				db.Log.Debug("msg", "Error Upserting row", "err", err, "value", value)
 				// exits from all loops -> continue in close log stmt
 				break loop
 			}
@@ -223,8 +223,6 @@ loop:
 				}
 				return db.SetBlock(eventTables, eventData)
 			}
-
-			db.Log.Debug("msg", "Error upserting row", "err", err)
 			return err
 		}
 

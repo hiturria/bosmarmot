@@ -329,10 +329,7 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 
 	// for each decoded item value, stores it in given item name
 	for i, input := range eventAbiSpec.Inputs {
-		typeName := reflect.TypeOf(unpackedData[i]).Elem()
-
-		l.Debug("msg", fmt.Sprintf("Unpacked data items: unpackedData[%v] = %v, type = %v, input.Name = %v", i, unpackedData[i], typeName, input.Name), "eventName", eventName)
-
+		typeName := reflect.TypeOf(unpackedData[i])
 		// go type switching to translate to string
 		switch v := unpackedData[i].(type) {
 		case *string:
@@ -344,16 +341,35 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 		case *crypto.Address:
 			data[input.Name] = v.String()
 		case *bool:
-			data[input.Name] = fmt.Sprint(v)
-		case *int, *int8, *int16, *int32, *int64:
-			data[input.Name] = fmt.Sprint(v)
-		case *uint, *uint8, *uint16, *uint32, *uint64:
-			data[input.Name] = fmt.Sprint(v)
+			data[input.Name] = strconv.FormatBool(*v)
+		case *int:
+			data[input.Name] = strconv.FormatInt(int64(*v), 10)
+		case *int8:
+			data[input.Name] = strconv.FormatInt(int64(*v), 10)
+		case *int16:
+			data[input.Name] = strconv.FormatInt(int64(*v), 10)
+		case *int32:
+			data[input.Name] = strconv.FormatInt(int64(*v), 10)
+		case *int64:
+			data[input.Name] = strconv.FormatInt(*v, 10)
+		case *uint:
+			data[input.Name] = strconv.FormatUint(uint64(*v), 10)
+		case *uint8:
+			data[input.Name] = strconv.FormatUint(uint64(*v), 10)
+		case *uint16:
+			data[input.Name] = strconv.FormatUint(uint64(*v), 10)
+		case *uint32:
+			data[input.Name] = strconv.FormatUint(uint64(*v), 10)
+		case *uint64:
+			data[input.Name] = strconv.FormatUint(*v, 10)
 		case *[]byte:
 			data[input.Name] = string(bytes.Trim(*v, "\x00"))
 		default:
 			return nil, fmt.Errorf("Could not match type %v for event item %v ", typeName, input.Name)
 		}
+
+		l.Debug("msg", fmt.Sprintf("Unpacked data items: unpackedData[%v] = %v, type = %v, tostring = %v, input.Name = %v", i, unpackedData[i], typeName, data[input.Name], input.Name), "eventName", eventName)
+
 	}
 
 	return data, nil

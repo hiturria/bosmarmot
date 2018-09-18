@@ -31,7 +31,9 @@ func init() {
 
 // Execute executes the vent command
 func Execute() {
-	ventCmd.Execute()
+	if err := ventCmd.Execute(); err != nil {
+		os.Exit(-1)
+	}
 }
 
 func runVentCmd(cmd *cobra.Command, args []string) {

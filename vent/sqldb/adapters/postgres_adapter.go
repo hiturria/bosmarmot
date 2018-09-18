@@ -17,6 +17,7 @@ var pgDataTypes = map[types.SQLColumnType]string{
 	types.SQLColumnTypeText:      "TEXT",
 	types.SQLColumnTypeVarchar:   "VARCHAR",
 	types.SQLColumnTypeTimeStamp: "TIMESTAMP",
+	types.SQLColumnTypeNumeric:   "NUMERIC",
 }
 
 // PostgresAdapter implements DBAdapter for Postgres

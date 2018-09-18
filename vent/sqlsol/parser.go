@@ -194,7 +194,7 @@ func mapToTable(byteValue []byte) (types.EventTables, types.EventSpec, error) {
 func getSQLType(eventInputType string) (types.SQLColumnType, int, error) {
 	if strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeInt) ||
 		strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeUInt) {
-		return types.SQLColumnTypeVarchar, 100, nil
+		return types.SQLColumnTypeNumeric, 0, nil
 	}
 	if strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeBytes) {
 		return types.SQLColumnTypeVarchar, 100, nil
@@ -233,8 +233,8 @@ func getGlobalColumns() map[string]types.SQLTableColumn {
 
 	globalColumns["index"] = types.SQLTableColumn{
 		Name:    types.SQLColumnNameIndex,
-		Type:    types.SQLColumnTypeVarchar,
-		Length:  100,
+		Type:    types.SQLColumnTypeNumeric,
+		Length:  0,
 		Primary: false,
 		Order:   3,
 	}
