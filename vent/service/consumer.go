@@ -1,21 +1,17 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/big"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
 
-	"github.com/hyperledger/burrow/crypto"
 	"github.com/hyperledger/burrow/execution/evm/abi"
 	"github.com/hyperledger/burrow/execution/exec"
 	"github.com/hyperledger/burrow/rpc/rpcevents"
@@ -308,8 +304,11 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 	data[eventTypeLabel] = header.GetEventType().String()
 	data[eventTxHashLabel] = fmt.Sprintf("%v", header.TxHash)
 
-	// build expected type array with go types from abi spec to get log event values
-	unpackedData := abi.GetPackingTypes(eventAbiSpec.Inputs)
+	// build expected interface type array to get log event values & make it string
+	unpackedData := make([]interface{}, len(eventAbiSpec.Inputs))
+	for i, _ := range unpackedData {
+		unpackedData[i] = new(string)
+	}
 
 	// unpack event data (topics & data part)
 	if err := abi.UnpackEvent(eventAbiSpec, log.Topics, log.Data, unpackedData...); err != nil {
@@ -320,51 +319,14 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 
 	// for each decoded item value, stores it in given item name
 	for i, input := range eventAbiSpec.Inputs {
-		typeName := reflect.TypeOf(unpackedData[i])
-		// go type switching to translate to string
-		switch v := unpackedData[i].(type) {
-		case *string:
-			data[input.Name] = *v
-		case *big.Int:
-			data[input.Name] = v.String()
-		case *big.Float:
-			data[input.Name] = v.String()
-		case *crypto.Address:
-			data[input.Name] = v.String()
-		case *bool:
-			data[input.Name] = strconv.FormatBool(*v)
-		case *int:
-			data[input.Name] = strconv.FormatInt(int64(*v), 10)
-		case *int8:
-			data[input.Name] = strconv.FormatInt(int64(*v), 10)
-		case *int16:
-			data[input.Name] = strconv.FormatInt(int64(*v), 10)
-		case *int32:
-			data[input.Name] = strconv.FormatInt(int64(*v), 10)
-		case *int64:
-			data[input.Name] = strconv.FormatInt(*v, 10)
-		case *uint:
-			data[input.Name] = strconv.FormatUint(uint64(*v), 10)
-		case *uint8:
-			data[input.Name] = strconv.FormatUint(uint64(*v), 10)
-		case *uint16:
-			data[input.Name] = strconv.FormatUint(uint64(*v), 10)
-		case *uint32:
-			data[input.Name] = strconv.FormatUint(uint64(*v), 10)
-		case *uint64:
-			data[input.Name] = strconv.FormatUint(*v, 10)
-		case *[]byte:
-			data[input.Name] = string(bytes.Trim(*v, "\x00"))
-		default:
-			return nil, fmt.Errorf("Could not match type %v for event item %v ", typeName, input.Name)
-		}
+		data[input.Name] = *unpackedData[i].(*string)
 
 		dataItem := data[input.Name]
 
-		// if the rare case that a not valid UTF8 string is found, convert characters to hexa
+		// in the rare case that a not valid UTF8 string is found, convert characters to hexa
 		if !utf8.ValidString(dataItem) {
 
-			l.Warn("msg", fmt.Sprintf("Illegal UTF8 string: unpackedData[%v] = %v, tostring = %v, input.Name = %v", i, typeName, data[input.Name], input.Name), "eventName", eventName)
+			l.Warn("msg", fmt.Sprintf("Illegal UTF8 string: i = %v, data[input.Name] = %v, input.Name = %v", i, data[input.Name], input.Name), "eventName", eventName)
 
 			s := make([]string, 0, len(dataItem))
 
@@ -375,7 +337,7 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 			data[input.Name] = strings.ToUpper(strings.Join(s, ""))
 		}
 
-		l.Debug("msg", fmt.Sprintf("Unpacked data items: unpackedData[%v] = %v, type = %v, tostring = %v, input.Name = %v", i, unpackedData[i], typeName, data[input.Name], input.Name), "eventName", eventName)
+		l.Debug("msg", fmt.Sprintf("Unpacked data items: unpackedData[%v] = %v, data[input.Name] = %v, input.Name = %v", i, unpackedData[i], data[input.Name], input.Name), "eventName", eventName)
 
 	}
 

@@ -197,7 +197,7 @@ func getSQLType(eventInputType string) (types.SQLColumnType, int, error) {
 		return types.SQLColumnTypeNumeric, 0, nil
 	}
 	if strings.HasPrefix(strings.ToLower(eventInputType), types.EventInputTypeBytes) {
-		return types.SQLColumnTypeByteA, 0, nil
+		return types.SQLColumnTypeVarchar, 100, nil
 	}
 	switch strings.ToLower(eventInputType) {
 	case types.EventInputTypeAddress:
