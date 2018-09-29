@@ -167,14 +167,13 @@ loop:
 			return err
 		}
 
-
 		// for Each Row
 		for _, row := range dataRows {
-			query,values,pointers,errQuery:=db.DBAdapter.UpsertQuery(table,row)
-			query=clean(query)
+			query, values, pointers, errQuery := db.DBAdapter.UpsertQuery(table, row)
+			query = clean(query)
 
 			if errQuery != nil {
-				db.Log.Debug("msg", "Error building query", "err", errQuery, "value", fmt.Sprintf("%v %v", table,row))
+				db.Log.Debug("msg", "Error building query", "err", errQuery, "value", fmt.Sprintf("%v %v", table, row))
 				return err
 			}
 

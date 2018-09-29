@@ -14,4 +14,3 @@ Each adapter must be in a separate file with the name `<dbms>_adapter.go` and mu
 This is all that is needed to add a new rdbms adapter, in addition to importing proper database driver.
 
 Provided implementations are included in `postgres_adapter.go` and `sqlite_adapter.go`.
-

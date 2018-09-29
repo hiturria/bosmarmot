@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,16 +56,23 @@ func NewConsumer(cfg *config.Flags, log *logger.Logger) *Consumer {
 func (c *Consumer) Run() error {
 	c.Log.Info("msg", "Reading events config file")
 
-	byteValue, err := readFile(c.Config.SpecFile)
-	if err != nil {
-		return errors.Wrap(err, "Error reading events config file")
+	if c.Config.SpecDir == "" && c.Config.SpecFile == "" {
+		return errors.New("One of SpecDir or SpecFile must be provided")
 	}
 
-	c.Log.Info("msg", "Parsing and mapping events config stream")
+	var parser *sqlsol.Parser
+	var err error
 
-	parser, err := sqlsol.NewParser(byteValue)
-	if err != nil {
-		return errors.Wrap(err, "Error mapping events config stream")
+	if c.Config.SpecDir != "" {
+		parser, err = sqlsol.NewParserFromFolder(c.Config.SpecDir)
+		if err != nil {
+			return errors.Wrap(err, "Error parsing spec config folder")
+		}
+	} else {
+		parser, err = sqlsol.NewParserFromFile(c.Config.SpecFile)
+		if err != nil {
+			return errors.Wrap(err, "Error parsing spec config file")
+		}
 	}
 
 	// obtain tables structures, event & abi specifications
@@ -179,7 +184,6 @@ func (c *Consumer) Run() error {
 
 				// get event data
 				for _, event := range resp.Events {
-
 					// a fresh new row to store column/value data
 					row := make(types.EventDataRow)
 
@@ -201,7 +205,6 @@ func (c *Consumer) Run() error {
 					eventBlockID := fmt.Sprintf("%v", eventHeader.GetHeight())
 
 					if strings.TrimSpace(fromBlock) != strings.TrimSpace(eventBlockID) {
-
 						// store block data in SQL tables (if any)
 						if blockData.PendingRows(fromBlock) {
 
@@ -222,6 +225,7 @@ func (c *Consumer) Run() error {
 
 					// get eventName to map to SQL tableName
 					eventName := eventData[eventNameLabel]
+
 					tableName, err := parser.GetTableName(eventName.(string))
 					if err != nil {
 						doneCh <- errors.Wrapf(err, "Error getting table name for event (filter: %s)", spec.Filter)
@@ -252,9 +256,7 @@ func (c *Consumer) Run() error {
 
 					eventCh <- blk
 				}
-
 			}
-
 		}()
 	}
 
@@ -286,6 +288,10 @@ loop:
 
 // Health returns the health status for the consumer
 func (c *Consumer) Health() error {
+	if c.Closing {
+		return errors.New("closing service")
+	}
+
 	// check db status
 	if c.DB == nil {
 		return errors.New("database disconnected")
@@ -343,7 +349,6 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 
 	// for each decoded item value, stores it in given item name
 	for i, input := range eventAbiSpec.Inputs {
-
 		switch v := unpackedData[i].(type) {
 		case *crypto.Address:
 			data[input.Name] = v.Bytes()
@@ -355,21 +360,6 @@ func decodeEvent(eventName string, header *exec.Header, log *exec.LogEvent, abiS
 
 		l.Debug("msg", fmt.Sprintf("Unpacked data items: data[%v] = %v", input.Name, data[input.Name]), "eventName", eventName)
 	}
+
 	return data, nil
-}
-
-// readFile opens a given file and reads it contents into a stream of bytes
-func readFile(file string) ([]byte, error) {
-	theFile, err := os.Open(file)
-	if err != nil {
-		return nil, err
-	}
-	defer theFile.Close()
-
-	byteValue, err := ioutil.ReadAll(theFile)
-	if err != nil {
-		return nil, err
-	}
-
-	return byteValue, nil
 }

@@ -16,7 +16,7 @@ func TestSynchronizeDB(t *testing.T) {
 		goodJSON := test.GoodJSONConfFile(t)
 
 		byteValue := []byte(goodJSON)
-		tableStructure, _ := sqlsol.NewParser(byteValue)
+		tableStructure, _ := sqlsol.NewParserFromBytes(byteValue)
 
 		db, cleanUpDB := test.NewTestDB(t, types.PostgresDB)
 		defer cleanUpDB()
@@ -32,7 +32,7 @@ func TestSynchronizeDB(t *testing.T) {
 		goodJSON := test.GoodJSONConfFile(t)
 
 		byteValue := []byte(goodJSON)
-		tableStructure, _ := sqlsol.NewParser(byteValue)
+		tableStructure, _ := sqlsol.NewParserFromBytes(byteValue)
 
 		db, closeDB := test.NewTestDB(t, types.SQLiteDB)
 		defer closeDB()

@@ -192,10 +192,10 @@ func (adapter *PostgresAdapter) TableDefinitionQuery() string {
 			%s;`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnNameColumnName, types.SQLColumnNameColumnType,   // select
+		types.SQLColumnNameColumnName, types.SQLColumnNameColumnType, // select
 		types.SQLColumnNameColumnLength, types.SQLColumnNamePrimaryKey, // select
-		adapter.Schema, types.SQLDictionaryTableName,                   // from
-		types.SQLColumnNameTableName,                                   // where
+		adapter.Schema, types.SQLDictionaryTableName, // from
+		types.SQLColumnNameTableName,   // where
 		types.SQLColumnNameColumnOrder) // order by
 
 }
@@ -240,7 +240,7 @@ func (adapter *PostgresAdapter) SelectLogQuery() string {
 
 	return fmt.Sprintf(query,
 		types.SQLColumnNameTableName, types.SQLColumnNameEventName, // select
-		adapter.Schema, types.SQLLogTableName,                      // from
+		adapter.Schema, types.SQLLogTableName, // from
 		types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) // where
 }
 
@@ -251,7 +251,7 @@ func (adapter *PostgresAdapter) InsertLogQuery() string {
 		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5);`
 
 	return fmt.Sprintf(query,
-		adapter.Schema, types.SQLLogTableName,                                                   // insert
+		adapter.Schema, types.SQLLogTableName, // insert
 		types.SQLColumnNameTimeStamp, types.SQLColumnNameRowCount, types.SQLColumnNameTableName, // fields
 		types.SQLColumnNameEventName, types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) // fields
 }
@@ -279,7 +279,6 @@ func (adapter *PostgresAdapter) ErrorEquals(err error, sqlErrorType types.SQLErr
 
 	return false
 }
-
 
 func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error) {
 

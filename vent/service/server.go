@@ -19,11 +19,16 @@ type Server struct {
 
 // NewServer returns a new HTTP server
 func NewServer(cfg *config.Flags, log *logger.Logger, consumer *Consumer) *Server {
+	// setup handlers
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/health", healthHandler(log, consumer))
+
 	return &Server{
 		Config:   cfg,
 		Log:      log,
 		Consumer: consumer,
-		mux:      http.NewServeMux(),
+		mux:      mux,
 		stopCh:   make(chan bool, 1),
 	}
 }
@@ -31,9 +36,6 @@ func NewServer(cfg *config.Flags, log *logger.Logger, consumer *Consumer) *Serve
 // Run starts the HTTP server
 func (s *Server) Run() {
 	s.Log.Info("msg", "Starting HTTP Server")
-
-	// setup handlers
-	s.mux.HandleFunc("/health", s.health)
 
 	// start http server
 	httpServer := &http.Server{Addr: s.Config.HTTPAddr, Handler: s}
@@ -61,13 +63,13 @@ func (s *Server) Shutdown() {
 	s.stopCh <- true
 }
 
-func (s *Server) health(resp http.ResponseWriter, req *http.Request) {
-	err := s.Consumer.Health()
-	if err != nil {
-		resp.WriteHeader(http.StatusServiceUnavailable)
-	} else {
-		resp.WriteHeader(http.StatusOK)
+func healthHandler(log *logger.Logger, consumer *Consumer) func(resp http.ResponseWriter, req *http.Request) {
+	return func(resp http.ResponseWriter, req *http.Request) {
+		err := consumer.Health()
+		if err != nil {
+			resp.WriteHeader(http.StatusServiceUnavailable)
+		} else {
+			resp.WriteHeader(http.StatusOK)
+		}
 	}
-
-	s.Log.Debug("msg", "GET /health", "err", err)
 }

@@ -13,6 +13,7 @@ type Flags struct {
 	HTTPAddr  string
 	LogLevel  string
 	SpecFile  string
+	SpecDir   string
 }
 
 // DefaultFlags returns a configuration with default values
@@ -25,5 +26,6 @@ func DefaultFlags() *Flags {
 		HTTPAddr:  "0.0.0.0:8080",
 		LogLevel:  "debug",
 		SpecFile:  "",
+		SpecDir:   "",
 	}
 }

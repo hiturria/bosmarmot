@@ -3,15 +3,12 @@
 package service_test
 
 import (
-	"context"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/hyperledger/burrow/core"
-	"github.com/hyperledger/burrow/integration"
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/service"
@@ -20,34 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var privateAccounts = integration.MakePrivateAccounts(5) // make keys
-var genesisDoc = integration.TestGenesisDoc(privateAccounts)
-var inputAccount = privateAccounts[0]
-var testConfig = integration.NewTestConfig(genesisDoc)
-var kern *core.Kernel
-
-func TestMain(m *testing.M) {
-	cleanup := integration.EnterTestDirectory()
-	defer cleanup()
-
-	kern = integration.TestKernel(inputAccount, privateAccounts, testConfig, nil)
-
-	err := kern.Boot()
-	if err != nil {
-		panic(err)
-	}
-	// Sometimes better to not shutdown as logging errors on shutdown may obscure real issue
-	defer func() {
-		kern.Shutdown(context.Background())
-	}()
-
-	returnValue := m.Run()
-
-	time.Sleep(3 * time.Second)
-	os.Exit(returnValue)
-}
-
-func TestRun(t *testing.T) {
+func TestConsumer(t *testing.T) {
 	tCli := test.NewTransactClient(t, testConfig.RPC.GRPC.ListenAddress)
 	create := test.CreateContract(t, tCli, inputAccount.Address())
 
@@ -86,8 +56,8 @@ func TestRun(t *testing.T) {
 	consumer := service.NewConsumer(cfg, log)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
 
+	wg.Add(1)
 	go func() {
 		err := consumer.Run()
 		require.NoError(t, err)

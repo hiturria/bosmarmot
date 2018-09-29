@@ -3,6 +3,9 @@ package sqlsol
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,21 +22,63 @@ type Parser struct {
 	AbiSpec   *abi.AbiSpec
 }
 
-// NewParser receives a sqlsol event specification file stream
-// and returns a pointer to a filled parser structure
-// that contains event types mapped to SQL column types
-// and Event tables structures with table and columns info
-func NewParser(byteValue []byte) (*Parser, error) {
-
-	tables := make(types.EventTables)
+// NewParserFromBytes creates a Parser from a stream of bytes
+func NewParserFromBytes(bytes []byte) (*Parser, error) {
 	eventSpec := types.EventSpec{}
 
-	// parses json specification stream
-	if err := json.Unmarshal(byteValue, &eventSpec); err != nil {
+	if err := json.Unmarshal(bytes, &eventSpec); err != nil {
 		return nil, errors.Wrap(err, "Error unmarshalling eventSpec")
 	}
 
+	return NewParserFromEventSpec(eventSpec)
+}
+
+// NewParserFromFile creates a Parser from a file
+func NewParserFromFile(file string) (*Parser, error) {
+	bytes, err := readFile(file)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error reading eventSpec file")
+	}
+
+	return NewParserFromBytes(bytes)
+}
+
+// NewParserFromFolder creates a Parser from a folder containing spec files
+func NewParserFromFolder(folder string) (*Parser, error) {
+	eventSpec := types.EventSpec{}
+
+	err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
+		if filepath.Ext(path) == ".json" {
+			bytes, err := readFile(path)
+			if err != nil {
+				return errors.Wrap(err, "Error reading eventSpec file")
+			}
+
+			fileEventSpec := types.EventSpec{}
+
+			if err := json.Unmarshal(bytes, &fileEventSpec); err != nil {
+				return errors.Wrap(err, "Error unmarshalling eventSpec")
+			}
+
+			eventSpec = append(eventSpec, fileEventSpec...)
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "Error reading eventSpec folder")
+	}
+
+	return NewParserFromEventSpec(eventSpec)
+}
+
+// NewParserFromEventSpec receives a sqlsol event specification
+// and returns a pointer to a filled parser structure
+// that contains event types mapped to SQL column types
+// and Event tables structures with table and columns info
+func NewParserFromEventSpec(eventSpec types.EventSpec) (*Parser, error) {
 	// builds abi information from specification
+	tables := make(types.EventTables)
 	abiSpecInput := []types.Event{}
 
 	for _, spec := range eventSpec {
@@ -62,15 +107,11 @@ func NewParser(byteValue []byte) (*Parser, error) {
 
 		// build columns mapping
 		columns := make(map[string]types.SQLTableColumn)
-
 		j := 0
 
 		if abiEvent, ok := abiSpec.Events[eventDef.Event.Name]; ok {
-
 			for _, eventInput := range abiEvent.Inputs {
-
 				if col, ok := eventDef.Columns[eventInput.Name]; ok {
-
 					sqlType, sqlTypeLength, err := getSQLType(eventInput)
 					if err != nil {
 						return nil, err
@@ -85,9 +126,7 @@ func NewParser(byteValue []byte) (*Parser, error) {
 						Primary: col.Primary,
 						Order:   j + globalColumnsLength,
 					}
-
 				}
-
 			}
 
 			// add global columns to columns definition
@@ -101,7 +140,6 @@ func NewParser(byteValue []byte) (*Parser, error) {
 				Columns: columns,
 			}
 		}
-
 	}
 
 	// check if there are duplicated table names in structure or
@@ -191,10 +229,25 @@ func (p *Parser) SetTableName(eventName, tableName string) error {
 	return fmt.Errorf("SetTableName: eventName does not exists as a table in SQL table structure: %s ", eventName)
 }
 
+// readFile opens a given file and reads it contents into a stream of bytes
+func readFile(file string) ([]byte, error) {
+	theFile, err := os.Open(file)
+	if err != nil {
+		return nil, err
+	}
+	defer theFile.Close()
+
+	byteValue, err := ioutil.ReadAll(theFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return byteValue, nil
+}
+
 // getSQLType maps event input types with corresponding SQL column types
 // takes into account related solidity types info and element indexed or hashed
 func getSQLType(abiInputInfo abi.Argument) (types.SQLColumnType, int, error) {
-
 	evmSignature := strings.ToLower(abiInputInfo.EVM.GetSignature())
 
 	re := regexp.MustCompile("[0-9]+")
@@ -237,7 +290,6 @@ func getSQLType(abiInputInfo abi.Argument) (types.SQLColumnType, int, error) {
 	default:
 		return -1, 0, fmt.Errorf("Don't know how to map evmSignature: %s ", evmSignature)
 	}
-
 }
 
 // getGlobalColumns returns global columns for event table structures,

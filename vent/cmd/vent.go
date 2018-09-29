@@ -28,6 +28,7 @@ func init() {
 	ventCmd.Flags().StringVar(&cfg.HTTPAddr, "http-addr", cfg.HTTPAddr, "Address to bind the HTTP server")
 	ventCmd.Flags().StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "Logging level (error, warn, info, debug)")
 	ventCmd.Flags().StringVar(&cfg.SpecFile, "spec-file", cfg.SpecFile, "SQLSol json specification file full path")
+	ventCmd.Flags().StringVar(&cfg.SpecDir, "spec-dir", cfg.SpecDir, "Path of a folder to look for SQLSol json specification files")
 }
 
 // Execute executes the vent command

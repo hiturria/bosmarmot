@@ -15,7 +15,7 @@ func TestNewParser(t *testing.T) {
 		badJSON := test.BadJSONConfFile(t)
 
 		byteValue := []byte(badJSON)
-		_, err := sqlsol.NewParser(byteValue)
+		_, err := sqlsol.NewParserFromBytes(byteValue)
 		require.Error(t, err)
 	})
 
@@ -23,7 +23,7 @@ func TestNewParser(t *testing.T) {
 		missingFields := test.MissingFieldsJSONConfFile(t)
 
 		byteValue := []byte(missingFields)
-		_, err := sqlsol.NewParser(byteValue)
+		_, err := sqlsol.NewParserFromBytes(byteValue)
 		require.Error(t, err)
 	})
 
@@ -31,7 +31,7 @@ func TestNewParser(t *testing.T) {
 		goodJSON := test.GoodJSONConfFile(t)
 
 		byteValue := []byte(goodJSON)
-		tableStruct, err := sqlsol.NewParser(byteValue)
+		tableStruct, err := sqlsol.NewParserFromBytes(byteValue)
 		require.NoError(t, err)
 
 		// table structure contents
@@ -70,7 +70,7 @@ func TestNewParser(t *testing.T) {
 		typeUnknownJSON := test.UnknownTypeJSONConfFile(t)
 
 		byteValue := []byte(typeUnknownJSON)
-		_, err := sqlsol.NewParser(byteValue)
+		_, err := sqlsol.NewParserFromBytes(byteValue)
 		require.Error(t, err)
 	})
 
@@ -78,7 +78,7 @@ func TestNewParser(t *testing.T) {
 		duplicatedTableNameJSON := test.DuplicatedTableNameJSONConfFile(t)
 
 		byteValue := []byte(duplicatedTableNameJSON)
-		_, err := sqlsol.NewParser(byteValue)
+		_, err := sqlsol.NewParserFromBytes(byteValue)
 		require.Error(t, err)
 	})
 
@@ -86,7 +86,7 @@ func TestNewParser(t *testing.T) {
 		duplicatedColNameJSON := test.DuplicatedColNameJSONConfFile(t)
 
 		byteValue := []byte(duplicatedColNameJSON)
-		_, err := sqlsol.NewParser(byteValue)
+		_, err := sqlsol.NewParserFromBytes(byteValue)
 		require.Error(t, err)
 	})
 
@@ -96,7 +96,7 @@ func TestGetTableName(t *testing.T) {
 	goodJSON := test.GoodJSONConfFile(t)
 
 	byteValue := []byte(goodJSON)
-	tableStruct, _ := sqlsol.NewParser(byteValue)
+	tableStruct, _ := sqlsol.NewParserFromBytes(byteValue)
 
 	t.Run("successfully gets the mapping table name for a given event name", func(t *testing.T) {
 		tableName, err := tableStruct.GetTableName("UpdateTable")
@@ -115,7 +115,7 @@ func TestGetColumnName(t *testing.T) {
 	goodJSON := test.GoodJSONConfFile(t)
 
 	byteValue := []byte(goodJSON)
-	tableStruct, _ := sqlsol.NewParser(byteValue)
+	tableStruct, _ := sqlsol.NewParserFromBytes(byteValue)
 
 	t.Run("successfully gets the mapping column name for a given event name/item", func(t *testing.T) {
 		columnName, err := tableStruct.GetColumnName("UpdateTable", "blocknum")
@@ -140,7 +140,7 @@ func TestGetColumn(t *testing.T) {
 	goodJSON := test.GoodJSONConfFile(t)
 
 	byteValue := []byte(goodJSON)
-	tableStruct, _ := sqlsol.NewParser(byteValue)
+	tableStruct, _ := sqlsol.NewParserFromBytes(byteValue)
 
 	t.Run("successfully gets the mapping column info for a given event name/item", func(t *testing.T) {
 		column, err := tableStruct.GetColumn("UpdateTable", "blocknum")
@@ -165,7 +165,7 @@ func TestSetTableName(t *testing.T) {
 	goodJSON := test.GoodJSONConfFile(t)
 
 	byteValue := []byte(goodJSON)
-	tableStruct, _ := sqlsol.NewParser(byteValue)
+	tableStruct, _ := sqlsol.NewParserFromBytes(byteValue)
 
 	t.Run("successfully updates table name for a given event name", func(t *testing.T) {
 		err := tableStruct.SetTableName("UpdateTable", "TEST_TABLE")
@@ -180,7 +180,7 @@ func TestGetTables(t *testing.T) {
 	goodJSON := test.GoodJSONConfFile(t)
 
 	byteValue := []byte(goodJSON)
-	tableStruct, _ := sqlsol.NewParser(byteValue)
+	tableStruct, _ := sqlsol.NewParserFromBytes(byteValue)
 
 	t.Run("successfully returns event tables structures", func(t *testing.T) {
 		tables := tableStruct.GetTables()
@@ -195,7 +195,7 @@ func TestGetEventSpec(t *testing.T) {
 	goodJSON := test.GoodJSONConfFile(t)
 
 	byteValue := []byte(goodJSON)
-	tableStruct, _ := sqlsol.NewParser(byteValue)
+	tableStruct, _ := sqlsol.NewParserFromBytes(byteValue)
 
 	t.Run("successfully returns event specification structures", func(t *testing.T) {
 		eventSpec := tableStruct.GetEventSpec()

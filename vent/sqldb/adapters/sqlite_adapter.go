@@ -137,13 +137,13 @@ func (adapter *SQLiteAdapter) LastBlockIDQuery() string {
 			FROM ll LEFT OUTER JOIN %s log ON (ll.%s = log.%s);`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnNameId,          // max
-		types.SQLColumnNameId,          // as
-		types.SQLLogTableName,          // from
-		types.SQLColumnNameEventFilter, // where
-		types.SQLColumnNameHeight,      // coalesce
-		types.SQLColumnNameHeight,      // as
-		types.SQLLogTableName,          // from
+		types.SQLColumnNameId,                        // max
+		types.SQLColumnNameId,                        // as
+		types.SQLLogTableName,                        // from
+		types.SQLColumnNameEventFilter,               // where
+		types.SQLColumnNameHeight,                    // coalesce
+		types.SQLColumnNameHeight,                    // as
+		types.SQLLogTableName,                        // from
 		types.SQLColumnNameId, types.SQLColumnNameId) // on
 }
 
@@ -170,10 +170,10 @@ func (adapter *SQLiteAdapter) TableDefinitionQuery() string {
 			%s;`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnNameColumnName, types.SQLColumnNameColumnType,   // select
+		types.SQLColumnNameColumnName, types.SQLColumnNameColumnType, // select
 		types.SQLColumnNameColumnLength, types.SQLColumnNamePrimaryKey, // select
-		types.SQLDictionaryTableName,                                   // from
-		types.SQLColumnNameTableName,                                   // where
+		types.SQLDictionaryTableName,   // from
+		types.SQLColumnNameTableName,   // where
 		types.SQLColumnNameColumnOrder) // order by
 
 }
@@ -217,7 +217,7 @@ func (adapter *SQLiteAdapter) SelectLogQuery() string {
 
 	return fmt.Sprintf(query,
 		types.SQLColumnNameTableName, types.SQLColumnNameEventName, // select
-		types.SQLLogTableName,                                      // from
+		types.SQLLogTableName,                                     // from
 		types.SQLColumnNameEventFilter, types.SQLColumnNameHeight) // where
 }
 
@@ -257,7 +257,6 @@ func (adapter *SQLiteAdapter) ErrorEquals(err error, sqlErrorType types.SQLError
 
 	return false
 }
-
 
 func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error) {
 
@@ -310,7 +309,6 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable, row types.EventD
 			pointers = append(pointers, &null)
 			values += "null"
 		}
-
 
 		if tableColumn.Primary {
 			// ON CONFLICT (....values....)
