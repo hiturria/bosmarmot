@@ -71,5 +71,7 @@ func healthHandler(log *logger.Logger, consumer *Consumer) func(resp http.Respon
 		} else {
 			resp.WriteHeader(http.StatusOK)
 		}
+
+		log.Debug("msg", "GET /health", "err", err)
 	}
 }
