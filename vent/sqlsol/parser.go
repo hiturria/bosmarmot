@@ -47,8 +47,8 @@ func NewParserFromFile(file string) (*Parser, error) {
 func NewParserFromFolder(folder string) (*Parser, error) {
 	eventSpec := types.EventSpec{}
 
-	err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
-		if filepath.Ext(path) == ".json" {
+	err := filepath.Walk(folder, func(path string, _ os.FileInfo, err error) error {
+		if err == nil && filepath.Ext(path) == ".json" {
 			bytes, err := readFile(path)
 			if err != nil {
 				return errors.Wrap(err, "Error reading eventSpec file")
