@@ -153,7 +153,7 @@ func (adapter *PostgresAdapter) CreateTableQuery(tableName string, columns []typ
 func (adapter *PostgresAdapter) LastBlockIDQuery() string {
 	query := `
 		WITH ll AS (
-			SELECT MAX(%s) AS %s FROM %s.%s WHERE %s = $1
+			SELECT MAX(%s) AS %s FROM %s.%s
 		)
 		SELECT COALESCE(%s, '0') AS %s
 			FROM ll LEFT OUTER JOIN %s.%s log ON (ll.%s = log.%s);`
@@ -162,7 +162,6 @@ func (adapter *PostgresAdapter) LastBlockIDQuery() string {
 		types.SQLColumnNameId,                 // max
 		types.SQLColumnNameId,                 // as
 		adapter.Schema, types.SQLLogTableName, // from
-		types.SQLColumnNameEventFilter,        // where
 		types.SQLColumnNameHeight,             // coalesce
 		types.SQLColumnNameHeight,             // as
 		adapter.Schema, types.SQLLogTableName, // from

@@ -2,6 +2,7 @@ package types
 
 import (
 	"github.com/go-ozzo/ozzo-validation"
+	"github.com/hyperledger/burrow/event/query"
 )
 
 // EventSpec contains all event specifications
@@ -12,6 +13,7 @@ type EventDefinition struct {
 	TableName string                 `json:"TableName"`
 	Filter    string                 `json:"Filter"`
 	Columns   map[string]EventColumn `json:"Columns"`
+	query     query.Query
 }
 
 // Validate checks the structure of an EventDefinition
@@ -21,6 +23,18 @@ func (evDef EventDefinition) Validate() error {
 		validation.Field(&evDef.Filter, validation.Required),
 		validation.Field(&evDef.Columns, validation.Required, validation.Length(1, 0)),
 	)
+}
+
+// Get a (memoised) Query from the EventDefinition Filter string
+func (evDef EventDefinition) Query() (query.Query, error) {
+	if evDef.query == nil {
+		var err error
+		evDef.query, err = query.New(evDef.Filter)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return evDef.query, nil
 }
 
 // EventColumn struct (table column definition)

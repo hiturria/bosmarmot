@@ -131,7 +131,7 @@ func (adapter *SQLiteAdapter) CreateTableQuery(tableName string, columns []types
 func (adapter *SQLiteAdapter) LastBlockIDQuery() string {
 	query := `
 		WITH ll AS (
-			SELECT MAX(%s) AS %s FROM %s WHERE %s = $1
+			SELECT MAX(%s) AS %s FROM %s
 		)
 		SELECT COALESCE(%s, '0') AS %s
 			FROM ll LEFT OUTER JOIN %s log ON (ll.%s = log.%s);`
@@ -140,7 +140,6 @@ func (adapter *SQLiteAdapter) LastBlockIDQuery() string {
 		types.SQLColumnNameId,                        // max
 		types.SQLColumnNameId,                        // as
 		types.SQLLogTableName,                        // from
-		types.SQLColumnNameEventFilter,               // where
 		types.SQLColumnNameHeight,                    // coalesce
 		types.SQLColumnNameHeight,                    // as
 		types.SQLLogTableName,                        // from

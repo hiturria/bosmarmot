@@ -90,14 +90,14 @@ func (db *SQLDB) Ping() error {
 	return nil
 }
 
-// GetLastBlockID returns last inserted blockId for a given events filter from log table
-func (db *SQLDB) GetLastBlockID(eventFilter string) (string, error) {
+// GetLastBlockID returns last inserted blockId from log table
+func (db *SQLDB) GetLastBlockID() (string, error) {
 	query := clean(db.DBAdapter.LastBlockIDQuery())
 	id := ""
 
 	db.Log.Debug("msg", "MAX ID", "query", query)
 
-	if err := db.DB.QueryRow(query, eventFilter).Scan(&id); err != nil {
+	if err := db.DB.QueryRow(query).Scan(&id); err != nil {
 		db.Log.Debug("msg", "Error selecting last block id", "err", err)
 		return "", err
 	}

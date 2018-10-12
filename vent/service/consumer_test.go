@@ -60,10 +60,9 @@ func TestConsumer(t *testing.T) {
 
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		err := consumer.Run(false)
 		require.NoError(t, err)
-
-		wg.Done()
 	}()
 
 	// shutdown consumer in a few secs and wait for its end

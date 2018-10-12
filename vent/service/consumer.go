@@ -156,7 +156,6 @@ func (c *Consumer) Run(stream bool) error {
 	}
 	defer c.GRPCConnection.Close()
 
-	// start a goroutine to listen to events for each event definition in the spec
 	// doneCh is used for sending a "done" signal from each goroutine to the main thread
 	// eventCh is used for sending received events to the main thread to be stored in the db
 	doneCh := make(chan error)
@@ -164,108 +163,157 @@ func (c *Consumer) Run(stream bool) error {
 
 	var wg sync.WaitGroup
 
-	for i := range eventSpec {
-		spec := eventSpec[i]
-		wg.Add(1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 
-		go func() {
-			defer wg.Done()
+		c.Log.Info("msg", "Getting last processed block number from SQL log table")
 
-			c.Log.Info("msg", "Getting last processed block number from SQL log table", "filter", spec.Filter)
+		// right now there is no way to know if the last block of events was completely read
+		// so we have to begin processing from the last block number stored in database
+		// and update event data if already present
+		fromBlock, err := c.DB.GetLastBlockID()
+		if err != nil {
+			doneCh <- errors.Wrapf(err, "Error trying to get last processed block number from SQL log table")
+			return
+		}
 
-			// right now there is no way to know if the last block of events was completely read
-			// so we have to begin processing from the last block number stored in database
-			// for the given event filter and update event data if already present
-			fromBlock, err := c.DB.GetLastBlockID(spec.Filter)
-			if err != nil {
-				doneCh <- errors.Wrapf(err, "Error trying to get last processed block number from SQL log table (filter: %s)", spec.Filter)
-				return
-			}
+		// string to uint64 from event filtering
+		startingBlock, err := strconv.ParseUint(fromBlock, 10, 64)
+		if err != nil {
+			doneCh <- errors.Wrapf(err, "Error trying to convert fromBlock from string to uint64")
+			return
+		}
 
-			// string to uint64 from event filtering
-			startingBlock, err := strconv.ParseUint(fromBlock, 10, 64)
-			if err != nil {
-				doneCh <- errors.Wrapf(err, "Error trying to convert fromBlock from string to uint64 (filter: %s)", spec.Filter)
-				return
-			}
+		// setup block range to get needed blocks server side
+		cli := rpcevents.NewExecutionEventsClient(c.GRPCConnection)
+		var end *rpcevents.Bound
+		if stream {
+			end = rpcevents.StreamBound()
+		} else {
+			end = rpcevents.LatestBound()
+		}
 
-			// setup the execution events client for this spec
-			cli := rpcevents.NewExecutionEventsClient(c.GRPCConnection)
-			var end *rpcevents.Bound
-			if stream {
-				end = rpcevents.StreamBound()
+		request := &rpcevents.BlocksRequest{
+			BlockRange: rpcevents.NewBlockRange(rpcevents.AbsoluteBound(startingBlock), end),
+		}
+
+		// gets blocks in given range based on last processed block taken from database
+		blocks, err := cli.GetBlocks(context.Background(), request)
+		if err != nil {
+			doneCh <- errors.Wrapf(err, "Error connecting to block stream")
+			return
+		}
+
+		// create a fresh new structure to store block data
+		blockData := sqlsol.NewBlockData()
+		// getting blocks
+		for {
+			if c.Closing {
+				break
 			} else {
-				end = rpcevents.LatestBound()
+				time.Sleep(100 * time.Millisecond)
 			}
 
-			request := &rpcevents.BlocksRequest{
-				Query:      spec.Filter,
-				BlockRange: rpcevents.NewBlockRange(rpcevents.AbsoluteBound(startingBlock), end),
-			}
+			c.Log.Info("msg", "Waiting for blocks...")
 
-			// gets events with given filter & block range based on last processed block taken from database
-			evs, err := cli.GetEvents(context.Background(), request)
+			resp, err := blocks.Recv()
 			if err != nil {
-				doneCh <- errors.Wrapf(err, "Error connecting to events stream (filter: %s)", spec.Filter)
-				return
-			}
-
-			// create a fresh new structure to store block data
-			blockData := sqlsol.NewBlockData()
-			tableName := strings.ToLower(spec.TableName)
-
-			// getting events
-			for {
-				if c.Closing {
-					break
+				if err == io.EOF {
+					c.Log.Info("msg", "EOF stream received...")
+					continue
 				} else {
-					time.Sleep(100 * time.Millisecond)
-				}
-
-				c.Log.Info("msg", "Waiting for events", "filter", spec.Filter)
-
-				resp, err := evs.Recv()
-				if err != nil {
-					if err == io.EOF {
-						c.Log.Info("msg", "EOF received", "filter", spec.Filter)
-						continue
+					if c.Closing {
+						c.Log.Info("msg", "GRPC connection closed")
+						break
 					} else {
-						if c.Closing {
-							c.Log.Info("msg", "GRPC connection closed", "filter", spec.Filter)
-							break
-						} else {
-							doneCh <- errors.Wrapf(err, "Error receiving events (filter: %s)", spec.Filter)
-							return
-						}
+						doneCh <- errors.Wrapf(err, "Error receiving blocks")
+						return
 					}
 				}
+			}
 
-				c.Log.Info("msg", "Events received", "length", len(resp.Events), "filter", spec.Filter)
+			c.Log.Info("msg", "Block received", "num_txs", len(resp.TxExecutions))
 
-				// get event data
-				for _, event := range resp.Events {
-					// a fresh new row to store column/value data
-					row := make(types.EventDataRow)
+			// get event data
+			for _, txe := range resp.TxExecutions {
+				for _, event := range txe.Events {
+					taggedEvent := event.Tagged()
 
 					// get header & log data for the given event
 					eventHeader := event.GetHeader()
 					eventLog := event.GetLog()
 
-					c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader), "filter", spec.Filter)
+					// see which spec filter matches with the one in event data
+					for _, spec := range eventSpec {
+						qry, err := spec.Query()
 
-					// decode event data using the provided abi specification
-					eventData, err := decodeEvent(eventHeader, eventLog, abiSpec, c.Log)
-					if err != nil {
-						doneCh <- errors.Wrapf(err, "Error decoding event (filter: %s)", spec.Filter)
-						return
-					}
+						if err != nil {
+							doneCh <- errors.Wrapf(err, "Error parsing query from filter string")
+							return
+						}
 
-					// if source block number is different than current
-					// upsert rows in specific SQL event tables and update block number
-					eventBlockID := fmt.Sprintf("%v", eventHeader.GetHeight())
+						// there's a matching filter, add data to the rows
+						if qry.Matches(taggedEvent) {
 
-					if strings.TrimSpace(fromBlock) != strings.TrimSpace(eventBlockID) {
-						// store block data in SQL tables (if any)
+							// a fresh new row to store column/value data
+							row := make(types.EventDataRow)
+
+							c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader), "filter", spec.Filter)
+
+							// decode event data using the provided abi specification
+							eventData, err := decodeEvent(eventHeader, eventLog, abiSpec, c.Log)
+							if err != nil {
+								doneCh <- errors.Wrapf(err, "Error decoding event (filter: %s)", spec.Filter)
+								return
+							}
+
+							// if source block number is different than current
+							// upsert rows in specific SQL event tables and update block number
+							eventBlockID := fmt.Sprintf("%v", eventHeader.GetHeight())
+
+							if strings.TrimSpace(fromBlock) != strings.TrimSpace(eventBlockID) {
+								// store block data in SQL tables (if any)
+								if blockData.PendingRows(fromBlock) {
+
+									// gets block data to upsert
+									blk := blockData.GetBlockData()
+
+									c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk), "filter", spec.Filter)
+
+									eventCh <- blk
+								}
+
+								// end of block setter, clear blockData structure
+								blockData = sqlsol.NewBlockData()
+
+								// set new block number
+								fromBlock = eventBlockID
+							}
+
+							// for each data element, maps to SQL columnName and gets its value
+							// if there is no matching column for the item, it doesn't need to be store in db
+							for k, v := range eventData {
+								if column, err := parser.GetColumn(spec.TableName, k); err == nil {
+									if column.BytesToString {
+										if bytes, ok := v.(*[]byte); ok {
+											str := strings.Trim(string(*bytes), "\x00")
+											row[column.Name] = interface{}(&str)
+											continue
+										}
+									}
+									row[column.Name] = v
+								}
+							}
+
+							// so, the row is filled with data, update block number in structure
+							blockData.SetBlockID(fromBlock)
+
+							// set row in structure
+							blockData.AddRow(strings.ToLower(spec.TableName), row)
+						}
+
+						// store pending block data in SQL tables (if any)
 						if blockData.PendingRows(fromBlock) {
 
 							// gets block data to upsert
@@ -275,49 +323,11 @@ func (c *Consumer) Run(stream bool) error {
 
 							eventCh <- blk
 						}
-
-						// end of block setter, clear blockData structure
-						blockData = sqlsol.NewBlockData()
-
-						// set new block number
-						fromBlock = eventBlockID
 					}
-
-					// for each data element, maps to SQL columnName and gets its value
-					// if there is no matching column for the item, it doesn't need to be store in db
-					for k, v := range eventData {
-						if column, err := parser.GetColumn(spec.TableName, k); err == nil {
-							if column.BytesToString {
-								if bytes, ok := v.(*[]byte); ok {
-									str := strings.Trim(string(*bytes), "\x00")
-									row[column.Name] = interface{}(&str)
-									continue
-								}
-							}
-							row[column.Name] = v
-						}
-					}
-
-					// so, the row is filled with data, update block number in structure
-					blockData.SetBlockID(fromBlock)
-
-					// set row in structure
-					blockData.AddRow(tableName, row)
-				}
-
-				// store pending block data in SQL tables (if any)
-				if blockData.PendingRows(fromBlock) {
-
-					// gets block data to upsert
-					blk := blockData.GetBlockData()
-
-					c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk), "filter", spec.Filter)
-
-					eventCh <- blk
 				}
 			}
-		}()
-	}
+		}
+	}()
 
 	go func() {
 		// wait for all threads to end
