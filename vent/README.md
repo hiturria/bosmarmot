@@ -1,12 +1,12 @@
 # Vent Component
 
-Vent reads a sqlsol json events specification file, parses its contents and maps column types to corresponding sql types to synchronize database structures.
+Vent reads sqlsol specification & abi files, parses their contents and maps column types to corresponding sql types to create or alter database structures.
 
-Then listens to burrow gRPC events based on given filters, parses, decodes data and builds rows to be upserted in corresponding event tables.
+Then listens to burrow gRPC server and get flowing events based on block range.
 
-Rows are upserted in blocks, where each block for a given event filter is one commit.
+Parses, unpacks, decodes data and builds rows to be upserted in matching event tables, rows are upserted in blocks where each block is one commit.
 
-Block id and event filtering data is stored in Log tables in order to resume pending blocks.
+Block id and context info are stored in Log tables in order to resume getting pending blocks.
 
 Given a sqlsol specification 
 
@@ -14,15 +14,15 @@ Given a sqlsol specification
 [
   {
     "TableName" : "EventTest",
-    "Filter" : "EventType = 'LogEvent'",
+    "Filter" : "Log1Text = 'LOGEVENT1'",
     "Columns"  : {
       "key" : {"name" : "testname", "type": "bytes32", "primary" : true},
-      "description": {"name" : "testdescription", "type": "bytes32", "primary" : false}
+      "description": {"name" : "testdescription", "type": "bytes32", "primary" : false, "bytesToString": true}
     }
   },
   {
     "TableName" : "UserAccounts",
-    "Filter" : "LOG1 = 'UserAccounts'",
+    "Filter" : "Log1Text = 'USERACCOUNTS'",
     "Columns"  : {
       "userAddress" : {"name" : "address", "type": "address", "primary" : true},
       "userName": {"name" : "username", "type": "string", "primary" : false}
@@ -32,11 +32,11 @@ Given a sqlsol specification
 
 ```
 
-Vent builds dictionary, log and event tables for the defined tables & columns and maps input types to proper sql types.
+Vent builds dictionary, log and event database tables for the defined tables & columns and maps input types to proper sql types.
 
 Database structures are created or altered on the fly based on specifications (just adding new columns is supported).
 
-Abi file can be generated from bin files like so:
+Abi files can be generated from bin files like so:
 
 ```bash
 cat *.bin | jq '.Abi[] | select(.type == "event")' > events.abi
