@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,74 +56,9 @@ func NewConsumer(cfg *config.Flags, log *logger.Logger, eChannel chan types.Even
 // Run connects to a grpc service and subscribes to log events,
 // then gets tables structures, maps them & parse event data.
 // Store data in SQL event tables, it runs forever
-func (c *Consumer) Run(stream bool) error {
+func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool) error {
 
-	if c.Config.SpecDir == "" && c.Config.SpecFile == "" {
-		return errors.New("One of SpecDir or SpecFile must be provided")
-	}
-
-	if c.Config.SpecDir != "" && c.Config.SpecFile != "" {
-		return errors.New("SpecDir or SpecFile must be provided, but not both")
-	}
-
-	if c.Config.AbiDir == "" && c.Config.AbiFile == "" {
-		return errors.New("One of AbiDir or AbiFile must be provided")
-	}
-
-	if c.Config.AbiDir != "" && c.Config.AbiFile != "" {
-		return errors.New("AbiDir or AbiFile must be provided, but not both")
-	}
-
-	var parser *sqlsol.Parser
 	var err error
-	var abiSpec *abi.AbiSpec
-
-	if c.Config.SpecDir != "" {
-		c.Log.Info("msg", "Reading spec files from directory", "dir", c.Config.SpecDir)
-
-		parser, err = sqlsol.NewParserFromFolder(c.Config.SpecDir)
-		if err != nil {
-			return errors.Wrap(err, "Error parsing spec config folder")
-		}
-	} else {
-		c.Log.Info("msg", "Reading spec from file", "file", c.Config.SpecFile)
-
-		parser, err = sqlsol.NewParserFromFile(c.Config.SpecFile)
-		if err != nil {
-			return errors.Wrap(err, "Error parsing spec config file")
-		}
-	}
-
-	if c.Config.AbiDir != "" {
-		c.Log.Info("msg", "Reading abi files from directory", "dir", c.Config.SpecDir)
-		specs := make([]*abi.AbiSpec, 0)
-
-		err := filepath.Walk(c.Config.AbiDir, func(path string, fi os.FileInfo, err error) error {
-			ext := filepath.Ext(path)
-			if fi.IsDir() || !(ext == ".bin" || ext == ".abi") {
-				return nil
-			}
-			if err == nil {
-				abi, err := abi.ReadAbiSpecFile(path)
-				if err != nil {
-					return errors.Wrap(err, "Error parsing abi file "+path)
-				}
-				specs = append(specs, abi)
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-		abiSpec = abi.MergeAbiSpec(specs)
-	} else {
-		c.Log.Info("msg", "Reading abi from file", "file", c.Config.SpecFile)
-
-		abiSpec, err = abi.ReadAbiSpecFile(c.Config.AbiFile)
-		if err != nil {
-			return errors.Wrap(err, "Error parsing abi file")
-		}
-	}
 
 	// obtain tables structures, event & abi specifications
 	tables := parser.GetTables()

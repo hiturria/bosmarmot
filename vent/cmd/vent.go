@@ -10,6 +10,7 @@ import (
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/service"
 	"github.com/monax/bosmarmot/vent/types"
+	"github.com/monax/bosmarmot/vent/sqlsol"
 	"github.com/spf13/cobra"
 )
 
@@ -46,6 +47,17 @@ func runVentCmd(cmd *cobra.Command, args []string) {
 	consumer := service.NewConsumer(cfg, log, make(chan types.EventData))
 	server := service.NewServer(cfg, log, consumer)
 
+	parser, err := sqlsol.SpecLoader(cfg.SpecFile, cfg.SpecDir)
+	if err != nil {
+		log.Error("err", err)
+		os.Exit(1)
+	}
+	abiSpec, err := sqlsol.AbiLoader(cfg.AbiFile, cfg.AbiDir)
+	if err != nil {
+		log.Error("err", err)
+		os.Exit(1)
+	}
+
 	var wg sync.WaitGroup
 
 	// setup channel for termination signals
@@ -58,7 +70,7 @@ func runVentCmd(cmd *cobra.Command, args []string) {
 	wg.Add(1)
 
 	go func() {
-		if err := consumer.Run(true); err != nil {
+		if err := consumer.Run(parser, abiSpec, true); err != nil {
 			log.Error("err", err)
 			os.Exit(1)
 		}
