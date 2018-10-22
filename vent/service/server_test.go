@@ -36,7 +36,7 @@ func TestServer(t *testing.T) {
 	log := logger.NewLogger(cfg.LogLevel)
 	consumer := service.NewConsumer(cfg, log, make(chan types.EventData))
 
-	parser, err := sqlsol.SpecLoader(cfg.SpecFile, "")
+	parser, err := sqlsol.SpecLoader(cfg.SpecFile, "", false)
 	abiSpec, err := sqlsol.AbiLoader(cfg.AbiFile, "")
 
 	var wg sync.WaitGroup

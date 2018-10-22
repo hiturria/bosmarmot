@@ -16,6 +16,7 @@ type Flags struct {
 	SpecDir   string
 	AbiFile   string
 	AbiDir    string
+	DBBlockTx bool
 }
 
 // DefaultFlags returns a configuration with default values
@@ -31,5 +32,6 @@ func DefaultFlags() *Flags {
 		SpecDir:   "",
 		AbiFile:   "",
 		AbiDir:    "",
+		DBBlockTx: false,
 	}
 }

@@ -36,29 +36,61 @@ type UpsertColumn struct {
 // SQL log & dictionary tables
 const SQLLogTableName = "_vent_log"
 const SQLDictionaryTableName = "_vent_dictionary"
+const SQLBlockTableName = "_vent_block"
+const SQLTxTableName = "_vent_tx"
 
-// defined fixed sql column names in log table
+// fixed sql column names in tables
 const (
 	// log
-	SQLColumnNameId          = "_id"
-	SQLColumnNameTimeStamp   = "_timestamp"
-	SQLColumnNameEventName   = "_eventname"
-	SQLColumnNameRowCount    = "_rowcount"
-	SQLColumnNameEventFilter = "_eventfilter"
-	SQLColumnNameHeight      = "_height"
+	SQLColumnLabelId          = "_id"
+	SQLColumnLabelTimeStamp   = "_timestamp"
+	SQLColumnLabelEventName   = "_eventname"
+	SQLColumnLabelRowCount    = "_rowcount"
+	SQLColumnLabelEventFilter = "_eventfilter"
+	SQLColumnLabelHeight      = "_height"
 
 	// common
-	SQLColumnNameTableName = "_tablename"
+	SQLColumnLabelTableName = "_tablename"
 
 	// dictionary
-	SQLColumnNameColumnName   = "_columnname"
-	SQLColumnNameColumnType   = "_columntype"
-	SQLColumnNameColumnLength = "_columnlength"
-	SQLColumnNamePrimaryKey   = "_primarykey"
-	SQLColumnNameColumnOrder  = "_columnorder"
+	SQLColumnLabelColumnName   = "_columnname"
+	SQLColumnLabelColumnType   = "_columntype"
+	SQLColumnLabelColumnLength = "_columnlength"
+	SQLColumnLabelPrimaryKey   = "_primarykey"
+	SQLColumnLabelColumnOrder  = "_columnorder"
 
-	// auxiliar (not in DB)
-	SQLColumnNameIndex     = "_index"
-	SQLColumnNameTxHash    = "_txhash"
-	SQLColumnNameEventType = "_eventtype"
+	// context
+	SQLColumnLabelIndex       = "_index"
+	SQLColumnLabelTxHash      = "_txhash"
+	SQLColumnLabelEventType   = "_eventtype"
+	SQLColumnLabelBlockHeader = "_blockheader"
+	SQLColumnLabelTxType      = "_txtype"
+	SQLColumnLabelTxExec      = "_txexecutions"
+	SQLColumnLabelEnvelope    = "_envelope"
+	SQLColumnLabelEvents      = "_events"
+	SQLColumnLabelResult      = "_result"
+	SQLColumnLabelReceipt     = "_receipt"
+	SQLColumnLabelException   = "_exception"
+)
+
+// labels for column mapping
+const (
+	// event related
+	EventNameLabel = "eventName"
+	EventTypeLabel = "eventType"
+
+	// block related
+	BlockHeightLabel = "height"
+	BlockHeaderLabel = "blockHeader"
+	BlockTxExecLabel = "txExecutions"
+
+	// transaction related
+	TxTxTypeLabel    = "txType"
+	TxTxHashLabel    = "txHash"
+	TxIndexLabel     = "index"
+	TxEnvelopeLabel  = "envelope"
+	TxEventsLabel    = "events"
+	TxResultLabel    = "result"
+	TxReceiptLabel   = "receipt"
+	TxExceptionLabel = "exception"
 )

@@ -62,7 +62,7 @@ func TestSetBlock(t *testing.T) {
 		_, err = db.GetLastBlockID()
 		require.NoError(t, err)
 
-		_, err = db.GetBlock("TEST", dat.Block)
+		_, err = db.GetBlock(dat.Block)
 		require.NoError(t, err)
 
 		// alter
@@ -87,7 +87,7 @@ func TestSetBlock(t *testing.T) {
 		_, err = db.GetLastBlockID()
 		require.NoError(t, err)
 
-		_, err = db.GetBlock("TEST", dat.Block)
+		_, err = db.GetBlock(dat.Block)
 		require.NoError(t, err)
 
 		// alter

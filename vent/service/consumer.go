@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math/big"
@@ -22,14 +23,6 @@ import (
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
-)
-
-const (
-	eventNameLabel   = "eventName"
-	eventHeightLabel = "height"
-	eventTxHashLabel = "txHash"
-	eventIndexLabel  = "index"
-	eventTypeLabel   = "eventType"
 )
 
 // Consumer contains basic configuration for consumer to run
@@ -141,9 +134,7 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 			return
 		}
 
-		// create a fresh new structure to store block data
-		blockData := sqlsol.NewBlockData()
-		// getting blocks
+		// get blocks
 		for {
 			if c.Closing {
 				break
@@ -171,9 +162,39 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 
 			c.Log.Info("msg", "Block received", "num_txs", len(resp.TxExecutions))
 
-			// get event data
+			// set new block number
+			fromBlock = fmt.Sprintf("%v", resp.Height)
+
+			// create a fresh new structure to store block data
+			blockData := sqlsol.NewBlockData()
+
+			// update block info in structure
+			blockData.SetBlockID(fromBlock)
+
+			if c.Config.DBBlockTx {
+				blkRawData, err := buildBlkData(tables, resp)
+				if err != nil {
+					doneCh <- errors.Wrapf(err, "Error building block raw data")
+				}
+				// set row in structure
+				blockData.AddRow(types.SQLBlockTableName, blkRawData)
+			}
+
+			// get transactions for a given block
 			for _, txe := range resp.TxExecutions {
+
+				if c.Config.DBBlockTx {
+					txRawData, err := buildTxData(tables, txe)
+					if err != nil {
+						doneCh <- errors.Wrapf(err, "Error building tx raw data")
+					}
+					// set row in structure
+					blockData.AddRow(types.SQLTxTableName, txRawData)
+				}
+
+				// get events for a given transaction
 				for _, event := range txe.Events {
+
 					taggedEvent := event.Tagged()
 
 					// get header & log data for the given event
@@ -204,31 +225,8 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 								return
 							}
 
-							// if source block number is different than current
-							// upsert rows in specific SQL event tables and update block number
-							eventBlockID := fmt.Sprintf("%v", eventHeader.GetHeight())
-
-							if strings.TrimSpace(fromBlock) != strings.TrimSpace(eventBlockID) {
-								// store block data in SQL tables (if any)
-								if blockData.PendingRows(fromBlock) {
-
-									// gets block data to upsert
-									blk := blockData.GetBlockData()
-
-									c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk), "filter", spec.Filter)
-
-									eventCh <- blk
-								}
-
-								// end of block setter, clear blockData structure
-								blockData = sqlsol.NewBlockData()
-
-								// set new block number
-								fromBlock = eventBlockID
-							}
-
 							// for each data element, maps to SQL columnName and gets its value
-							// if there is no matching column for the item, it doesn't need to be store in db
+							// if there is no matching column for the item, it doesn't need to be stored in db
 							for k, v := range eventData {
 								if column, err := parser.GetColumn(spec.TableName, k); err == nil {
 									if column.BytesToString {
@@ -241,26 +239,23 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 									row[column.Name] = v
 								}
 							}
-
-							// so, the row is filled with data, update block number in structure
-							blockData.SetBlockID(fromBlock)
-
 							// set row in structure
 							blockData.AddRow(strings.ToLower(spec.TableName), row)
 						}
-
-						// store pending block data in SQL tables (if any)
-						if blockData.PendingRows(fromBlock) {
-
-							// gets block data to upsert
-							blk := blockData.GetBlockData()
-
-							c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk), "filter", spec.Filter)
-
-							eventCh <- blk
-						}
 					}
 				}
+			}
+
+			// upsert rows in specific SQL event tables and update block number
+			// store block data in SQL tables (if any)
+			if blockData.PendingRows(fromBlock) {
+
+				// gets block data to upsert
+				blk := blockData.GetBlockData()
+
+				c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk), "block", fromBlock)
+
+				eventCh <- blk
 			}
 		}
 	}()
@@ -346,11 +341,10 @@ func decodeEvent(header *exec.Header, log *exec.LogEvent, abiSpec *abi.AbiSpec, 
 	}
 
 	// decode header to get context data for each event
-	data[eventNameLabel] = evAbi.Name
-	data[eventIndexLabel] = fmt.Sprintf("%v", header.GetIndex())
-	data[eventHeightLabel] = fmt.Sprintf("%v", header.GetHeight())
-	data[eventTypeLabel] = header.GetEventType().String()
-	data[eventTxHashLabel] = header.TxHash.String()
+	data[types.EventNameLabel] = evAbi.Name
+	data[types.BlockHeightLabel] = fmt.Sprintf("%v", header.GetHeight())
+	data[types.EventTypeLabel] = header.GetEventType().String()
+	data[types.TxTxHashLabel] = header.TxHash.String()
 
 	// build expected interface type array to get log event values
 	unpackedData := abi.GetPackingTypes(evAbi.Inputs)
@@ -377,4 +371,83 @@ func decodeEvent(header *exec.Header, log *exec.LogEvent, abiSpec *abi.AbiSpec, 
 	}
 
 	return data, nil
+}
+
+// buildBlkData builds block data from block stream
+func buildBlkData(tbls types.EventTables, block *exec.BlockExecution) (types.EventDataRow, error) {
+
+	// a fresh new row to store column/value data
+	row := make(types.EventDataRow)
+
+	// block raw data
+	if tbl, ok := tbls[types.SQLBlockTableName]; ok {
+
+		blockHeader, err := json.Marshal(block.BlockHeader)
+		if err != nil {
+			return nil, fmt.Errorf("Couldn't marshal BlockHeader in block %v", block)
+		}
+
+		txExec, err := json.Marshal(block.TxExecutions)
+		if err != nil {
+			return nil, fmt.Errorf("Couldn't marshal txExecutions in block %v", block)
+		}
+
+		row[tbl.Columns[types.BlockHeightLabel].Name] = fmt.Sprintf("%v", block.Height)
+		row[tbl.Columns[types.BlockHeaderLabel].Name] = string(blockHeader)
+		row[tbl.Columns[types.BlockTxExecLabel].Name] = string(txExec)
+	} else {
+		return nil, fmt.Errorf("table: %s not found in table structure %v", types.SQLBlockTableName, tbls)
+	}
+
+	return row, nil
+}
+
+// buildTxData builds transaction data from tx stream
+func buildTxData(tbls types.EventTables, txe *exec.TxExecution) (types.EventDataRow, error) {
+
+	// a fresh new row to store column/value data
+	row := make(types.EventDataRow)
+
+	// transaction raw data
+	if tbl, ok := tbls[types.SQLTxTableName]; ok {
+
+		envelope, err := json.Marshal(txe.Envelope)
+		if err != nil {
+			return nil, fmt.Errorf("Couldn't marshal envelope in tx %v", txe)
+		}
+
+		events, err := json.Marshal(txe.Events)
+		if err != nil {
+			return nil, fmt.Errorf("Couldn't marshal events in tx %v", txe)
+		}
+
+		result, err := json.Marshal(txe.Result)
+		if err != nil {
+			return nil, fmt.Errorf("Couldn't marshal result in tx %v", txe)
+		}
+
+		receipt, err := json.Marshal(txe.Receipt)
+		if err != nil {
+			return nil, fmt.Errorf("Couldn't marshal receipt in tx %v", txe)
+		}
+
+		exception, err := json.Marshal(txe.Exception)
+		if err != nil {
+			return nil, fmt.Errorf("Couldn't marshal exception in tx %v", txe)
+		}
+
+		row[tbl.Columns[types.BlockHeightLabel].Name] = fmt.Sprintf("%v", txe.Height)
+		row[tbl.Columns[types.TxTxHashLabel].Name] = txe.TxHash.String()
+		row[tbl.Columns[types.TxIndexLabel].Name] = txe.Index
+		row[tbl.Columns[types.TxTxTypeLabel].Name] = txe.TxType.String()
+		row[tbl.Columns[types.TxEnvelopeLabel].Name] = string(envelope)
+		row[tbl.Columns[types.TxEventsLabel].Name] = string(events)
+		row[tbl.Columns[types.TxResultLabel].Name] = string(result)
+		row[tbl.Columns[types.TxReceiptLabel].Name] = string(receipt)
+		row[tbl.Columns[types.TxExceptionLabel].Name] = string(exception)
+	} else {
+		return nil, fmt.Errorf("Table: %s not found in table structure %v", types.SQLTxTableName, tbls)
+	}
+
+	return row, nil
 }

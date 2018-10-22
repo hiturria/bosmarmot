@@ -33,6 +33,7 @@ func init() {
 	ventCmd.Flags().StringVar(&cfg.AbiFile, "abi-file", cfg.AbiFile, "Event Abi specification file full path")
 	ventCmd.Flags().StringVar(&cfg.AbiDir, "abi-dir", cfg.AbiDir, "Path of a folder to look for event Abi specification files")
 	ventCmd.Flags().StringVar(&cfg.SpecDir, "spec-dir", cfg.SpecDir, "Path of a folder to look for SQLSol json specification files")
+	ventCmd.Flags().BoolVar(&cfg.DBBlockTx, "db-block", cfg.DBBlockTx, "Create block & transaction tables and persist related data (true/false)")
 }
 
 // Execute executes the vent command
@@ -47,7 +48,7 @@ func runVentCmd(cmd *cobra.Command, args []string) {
 	consumer := service.NewConsumer(cfg, log, make(chan types.EventData))
 	server := service.NewServer(cfg, log, consumer)
 
-	parser, err := sqlsol.SpecLoader(cfg.SpecFile, cfg.SpecDir)
+	parser, err := sqlsol.SpecLoader(cfg.SpecFile, cfg.SpecDir, cfg.DBBlockTx)
 	if err != nil {
 		log.Error("err", err)
 		os.Exit(1)

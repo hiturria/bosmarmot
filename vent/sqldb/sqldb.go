@@ -50,26 +50,26 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 	}
 
 	db.Log.Info("msg", "Initializing DB")
-	eventTables := db.getSysTablesDefinition()
+
+	// create dictionary and log tables
+	sysTables := db.getSysTablesDefinition()
 
 	// IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (1)
-	table := eventTables[types.SQLDictionaryTableName]
-	if err = db.createTable(table); err != nil {
+	if err = db.createTable(sysTables[types.SQLDictionaryTableName]); err != nil {
 		if !db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
-			db.Log.Debug("msg", "Error Initializing DB", "err", err)
+			db.Log.Debug("msg", "Error creating Dictionary table", "err", err)
 			return nil, err
 		}
 	}
 
 	// IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (2)
-	table = eventTables[types.SQLLogTableName]
-	if err = db.createTable(table); err != nil {
+	if err = db.createTable(sysTables[types.SQLLogTableName]); err != nil {
 		if !db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
-			db.Log.Debug("msg", "Error Initializing DB", "err", err)
+			db.Log.Debug("msg", "Error creating Log table", "err", err)
 			return nil, err
 		}
 	}
-
+	
 	return db, nil
 }
 
@@ -237,14 +237,14 @@ loop:
 	return nil
 }
 
-// GetBlock returns all tables structures and row data for given block & events filter
-func (db *SQLDB) GetBlock(eventFilter, block string) (types.EventData, error) {
+// GetBlock returns all tables structures and row data for given block
+func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 	var data types.EventData
 	data.Block = block
 	data.Tables = make(map[string]types.EventDataTable)
 
 	// get all table structures involved in the block
-	tables, err := db.getBlockTables(eventFilter, block)
+	tables, err := db.getBlockTables(block)
 	if err != nil {
 		return data, err
 	}

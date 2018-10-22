@@ -231,44 +231,36 @@ func getSQLType(evmSignature string, isArray bool, bytesToString bool) (types.SQ
 func getGlobalColumns() map[string]types.SQLTableColumn {
 	globalColumns := make(map[string]types.SQLTableColumn)
 
-	globalColumns["height"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameHeight,
+	globalColumns[types.BlockHeightLabel] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelHeight,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
 		Order:   1,
 	}
 
-	globalColumns["txHash"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameTxHash,
+	globalColumns[types.TxTxHashLabel] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelTxHash,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  40,
 		Primary: false,
 		Order:   2,
 	}
 
-	globalColumns["index"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameIndex,
-		Type:    types.SQLColumnTypeNumeric,
-		Length:  0,
+	globalColumns[types.EventTypeLabel] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelEventType,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
 		Primary: false,
 		Order:   3,
 	}
 
-	globalColumns["eventType"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameEventType,
+	globalColumns[types.EventNameLabel] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelEventName,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
 		Order:   4,
-	}
-
-	globalColumns["eventName"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameEventName,
-		Type:    types.SQLColumnTypeVarchar,
-		Length:  100,
-		Primary: false,
-		Order:   5,
 	}
 
 	return globalColumns

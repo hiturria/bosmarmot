@@ -35,53 +35,53 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 	logCol := make(map[string]types.SQLTableColumn)
 
 	// log table
-	logCol["id"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameId,
+	logCol[types.SQLColumnLabelId] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelId,
 		Type:    types.SQLColumnTypeSerial,
 		Primary: true,
 		Order:   1,
 	}
 
-	logCol["timestamp"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameTimeStamp,
+	logCol[types.SQLColumnLabelTimeStamp] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelTimeStamp,
 		Type:    types.SQLColumnTypeTimeStamp,
 		Primary: false,
 		Order:   2,
 	}
 
-	logCol["tableName"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameTableName,
+	logCol[types.SQLColumnLabelTableName] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelTableName,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
 		Order:   3,
 	}
 
-	logCol["eventName"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameEventName,
+	logCol[types.EventNameLabel] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelEventName,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
 		Order:   4,
 	}
 
-	logCol["rowCount"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameRowCount,
+	logCol[types.SQLColumnLabelRowCount] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelRowCount,
 		Type:    types.SQLColumnTypeInt,
 		Primary: false,
 		Order:   5,
 	}
 
-	logCol["eventFilter"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameEventFilter,
+	logCol[types.SQLColumnLabelEventFilter] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelEventFilter,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
 		Order:   6,
 	}
 
-	logCol["height"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameHeight,
+	logCol[types.BlockHeightLabel] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelHeight,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
@@ -89,48 +89,48 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 	}
 
 	// dictionary table
-	dicCol["tableName"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameTableName,
+	dicCol[types.SQLColumnLabelTableName] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelTableName,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: true,
 		Order:   1,
 	}
 
-	dicCol["columnName"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameColumnName,
+	dicCol[types.SQLColumnLabelColumnName] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelColumnName,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: true,
 		Order:   2,
 	}
 
-	dicCol["columnType"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameColumnType,
+	dicCol[types.SQLColumnLabelColumnType] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelColumnType,
 		Type:    types.SQLColumnTypeInt,
 		Length:  0,
 		Primary: false,
 		Order:   3,
 	}
 
-	dicCol["columnLenght"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameColumnLength,
+	dicCol[types.SQLColumnLabelColumnLength] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelColumnLength,
 		Type:    types.SQLColumnTypeInt,
 		Length:  0,
 		Primary: false,
 		Order:   4,
 	}
 
-	dicCol["columnPrimaryKey"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNamePrimaryKey,
+	dicCol[types.SQLColumnLabelPrimaryKey] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelPrimaryKey,
 		Type:    types.SQLColumnTypeInt,
 		Length:  0,
 		Primary: false,
 		Order:   5,
 	}
 
-	dicCol["columnOrder"] = types.SQLTableColumn{
-		Name:    types.SQLColumnNameColumnOrder,
+	dicCol[types.SQLColumnLabelColumnOrder] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelColumnOrder,
 		Type:    types.SQLColumnTypeInt,
 		Length:  0,
 		Primary: false,
@@ -345,14 +345,14 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 }
 
 // getBlockTables return all SQL tables that have been involved
-// in a given batch transaction for a specific block & events filter
-func (db *SQLDB) getBlockTables(eventFilter, block string) (types.EventTables, error) {
+// in a given batch transaction for a specific block
+func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 	tables := make(types.EventTables)
 
 	query := clean(db.DBAdapter.SelectLogQuery())
 	db.Log.Debug("msg", "QUERY LOG", "query", query, "value", block)
 
-	rows, err := db.DB.Query(query, eventFilter, block)
+	rows, err := db.DB.Query(query, block)
 	if err != nil {
 		db.Log.Debug("msg", "Error querying log", "err", err)
 		return tables, err

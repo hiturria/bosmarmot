@@ -47,19 +47,19 @@ func TestNewParser(t *testing.T) {
 		require.Equal(t, types.SQLColumnTypeVarchar, col.Type)
 		require.Equal(t, "address", col.Name)
 
-		col, err = tableStruct.GetColumn("UserAccounts", "index")
-		require.NoError(t, err)
-		require.Equal(t, false, col.Primary)
-		require.Equal(t, types.SQLColumnTypeNumeric, col.Type)
-		require.Equal(t, "_index", col.Name)
-		require.Equal(t, 3, col.Order)
-
-		col, err = tableStruct.GetColumn("UserAccounts", "height")
+		col, err = tableStruct.GetColumn("UserAccounts", "txHash")
 		require.NoError(t, err)
 		require.Equal(t, false, col.Primary)
 		require.Equal(t, types.SQLColumnTypeVarchar, col.Type)
-		require.Equal(t, "_height", col.Name)
-		require.Equal(t, 1, col.Order)
+		require.Equal(t, "_txhash", col.Name)
+		require.Equal(t, 2, col.Order)
+
+		col, err = tableStruct.GetColumn("UserAccounts", "eventName")
+		require.NoError(t, err)
+		require.Equal(t, false, col.Primary)
+		require.Equal(t, types.SQLColumnTypeVarchar, col.Type)
+		require.Equal(t, "_eventname", col.Name)
+		require.Equal(t, 4, col.Order)
 	})
 
 	t.Run("returns an error if the event type of a given column is unknown", func(t *testing.T) {

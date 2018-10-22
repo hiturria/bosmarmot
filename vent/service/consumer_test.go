@@ -53,11 +53,12 @@ func TestConsumer(t *testing.T) {
 	cfg.SpecFile = os.Getenv("GOPATH") + "/src/github.com/monax/bosmarmot/vent/test/sqlsol_example.json"
 	cfg.AbiFile = os.Getenv("GOPATH") + "/src/github.com/monax/bosmarmot/vent/test/EventsTest.abi"
 	cfg.GRPCAddr = testConfig.RPC.GRPC.ListenAddress
+	cfg.DBBlockTx = true
 
 	log := logger.NewLogger(cfg.LogLevel)
 	consumer := service.NewConsumer(cfg, log, make(chan types.EventData))
 
-	parser, err := sqlsol.SpecLoader(cfg.SpecFile, "")
+	parser, err := sqlsol.SpecLoader(cfg.SpecFile, "", cfg.DBBlockTx)
 	abiSpec, err := sqlsol.AbiLoader(cfg.AbiFile, "")
 
 	var wg sync.WaitGroup
@@ -77,31 +78,36 @@ func TestConsumer(t *testing.T) {
 
 	// test data stored in database for two different block ids
 	eventName := "EventTest"
-	filter := "EventType = 'LogEvent'"
 
 	blockID := "2"
-	eventData, err := db.GetBlock(filter, blockID)
+	eventData, err := db.GetBlock(blockID)
 	require.NoError(t, err)
 	require.Equal(t, "2", eventData.Block)
-	require.Equal(t, 1, len(eventData.Tables))
+	require.Equal(t, 4, len(eventData.Tables))
 
 	tblData := eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
-	require.Equal(t, "0", tblData[0]["_index"].(string))
-	require.Equal(t, "2", tblData[0]["_height"].(string))
 	require.Equal(t, "LogEvent", tblData[0]["_eventtype"].(string))
 	require.Equal(t, "UpdateTestEvents", tblData[0]["_eventname"].(string))
 
 	blockID = "5"
-	eventData, err = db.GetBlock(filter, blockID)
+	eventData, err = db.GetBlock(blockID)
 	require.NoError(t, err)
 	require.Equal(t, "5", eventData.Block)
-	require.Equal(t, 1, len(eventData.Tables))
+	require.Equal(t, 4, len(eventData.Tables))
 
 	tblData = eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
-	require.Equal(t, "0", tblData[0]["_index"].(string))
-	require.Equal(t, "5", tblData[0]["_height"].(string))
 	require.Equal(t, "LogEvent", tblData[0]["_eventtype"].(string))
 	require.Equal(t, "UpdateTestEvents", tblData[0]["_eventname"].(string))
+
+	// block & tx raw data also persisted
+	if cfg.DBBlockTx {
+		tblData = eventData.Tables[types.SQLBlockTableName]
+		require.Equal(t, 1, len(tblData))
+
+		tblData = eventData.Tables[types.SQLTxTableName]
+		require.Equal(t, 1, len(tblData))
+		require.Equal(t, "E7D6153490DF530A2083466BDED7A8F0D8212E39", tblData[0]["_txhash"].(string))
+	}
 }

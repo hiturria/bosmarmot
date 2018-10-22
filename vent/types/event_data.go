@@ -1,11 +1,15 @@
 package types
 
+import "github.com/hyperledger/burrow/execution/exec"
+
 // EventData contains data for each block of events
 // already mapped to SQL columns & tables
 // Tables map key is the table name
 type EventData struct {
-	Block  string
-	Tables map[string]EventDataTable
+	Block     string
+	BlkHeader *exec.BlockHeader
+	TxExec    []*exec.TxExecution
+	Tables    map[string]EventDataTable
 }
 
 // EventDataTable is an array of rows

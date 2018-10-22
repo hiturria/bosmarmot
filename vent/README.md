@@ -100,6 +100,7 @@ Configuration Flags:
 + `spec-dir`: Path of a folder to look for SQLSol json specification files
 + `abi-file`: Event Abi specification file full path
 + `abi-dir`: Path of a folder to look for event Abi specification files
++ `db-block`: Create block & transaction tables and persist related data (true/false)
 
 
 NOTES:
@@ -109,5 +110,7 @@ If `spec-dir` is given, vent will search for all `.json` spec files in given dir
 
 Also one of `abi-file` or `abi-dir` must be provided.
 If `abi-dir` is given, vent will search for all `.abi` spec files in given directory.
+
+if `db-block` is set to true (block explorer mode), Block and Transaction tables are created in addition to log and event tables to store block & tx info.
 
 It can be checked that vent is connected and ready sending a request to `http://<http-addr>/health` which will return a `200` OK response in case everything's fine.
