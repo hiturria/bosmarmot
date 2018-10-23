@@ -58,8 +58,8 @@ func TestConsumer(t *testing.T) {
 	log := logger.NewLogger(cfg.LogLevel)
 	consumer := service.NewConsumer(cfg, log, make(chan types.EventData))
 
-	parser, err := sqlsol.SpecLoader(cfg.SpecFile, "", cfg.DBBlockTx)
-	abiSpec, err := sqlsol.AbiLoader(cfg.AbiFile, "")
+	parser, err := sqlsol.SpecLoader("", cfg.SpecFile, cfg.DBBlockTx)
+	abiSpec, err := sqlsol.AbiLoader("", cfg.AbiFile)
 
 	var wg sync.WaitGroup
 
@@ -87,8 +87,8 @@ func TestConsumer(t *testing.T) {
 
 	tblData := eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
-	require.Equal(t, "LogEvent", tblData[0]["_eventtype"].(string))
-	require.Equal(t, "UpdateTestEvents", tblData[0]["_eventname"].(string))
+	require.Equal(t, "LogEvent", tblData[0].RowData["_eventtype"].(string))
+	require.Equal(t, "UpdateTestEvents", tblData[0].RowData["_eventname"].(string))
 
 	blockID = "5"
 	eventData, err = db.GetBlock(blockID)
@@ -98,8 +98,8 @@ func TestConsumer(t *testing.T) {
 
 	tblData = eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
-	require.Equal(t, "LogEvent", tblData[0]["_eventtype"].(string))
-	require.Equal(t, "UpdateTestEvents", tblData[0]["_eventname"].(string))
+	require.Equal(t, "LogEvent", tblData[0].RowData["_eventtype"].(string))
+	require.Equal(t, "UpdateTestEvents", tblData[0].RowData["_eventname"].(string))
 
 	// block & tx raw data also persisted
 	if cfg.DBBlockTx {
@@ -108,6 +108,6 @@ func TestConsumer(t *testing.T) {
 
 		tblData = eventData.Tables[types.SQLTxTableName]
 		require.Equal(t, 1, len(tblData))
-		require.Equal(t, "E7D6153490DF530A2083466BDED7A8F0D8212E39", tblData[0]["_txhash"].(string))
+		require.Equal(t, "E7D6153490DF530A2083466BDED7A8F0D8212E39", tblData[0].RowData["_txhash"].(string))
 	}
 }

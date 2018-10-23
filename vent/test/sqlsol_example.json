@@ -2,6 +2,7 @@
   {
     "TableName" : "EventTest",
     "Filter" : "EventType = 'LogEvent'",
+    "DeleteFilter": "CRUD_ACTION = 'delete'",
     "Columns"  : {
       "key" : {"name" : "testkey", "type": "bytes32", "primary" : true},
       "name" : {"name" : "testname", "type": "bytes32", "primary" : true, "bytesToString": true},
@@ -11,6 +12,7 @@
   {
     "TableName" : "UserAccounts",
     "Filter" : "LOG1 = 'UserAccounts'",
+    "DeleteFilter": "CRUD_ACTION = 'delete'",
     "Columns"  : {
       "userAddress" : {"name" : "address", "type": "address", "primary" : true},
       "userName": {"name" : "username", "type": "string", "primary" : false}

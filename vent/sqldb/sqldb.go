@@ -69,7 +69,7 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 			return nil, err
 		}
 	}
-	
+
 	return db, nil
 }
 
@@ -288,6 +288,7 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 
 		for rows.Next() {
 			row := make(map[string]interface{})
+			//var row types.EventDataRow
 
 			if err = rows.Scan(pointers...); err != nil {
 				db.Log.Debug("msg", "Error scanning data", "err", err)
@@ -303,7 +304,7 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 				}
 			}
 
-			dataRows = append(dataRows, row)
+			dataRows = append(dataRows, types.EventDataRow{Action: types.ActionRead, RowData: row})
 		}
 
 		if err = rows.Err(); err != nil {

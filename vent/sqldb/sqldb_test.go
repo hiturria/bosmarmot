@@ -188,32 +188,32 @@ func getBlock() (types.EventTables, types.EventData) {
 	dat.Tables = make(map[string]types.EventDataTable)
 
 	var rows1 []types.EventDataRow
-	rows1 = append(rows1, map[string]interface{}{"test_id": "1", "col1": "text11", "col2": "text12", "_height": "0123456789ABCDEF0", "col4": "14"})
-	rows1 = append(rows1, map[string]interface{}{"test_id": "2", "col1": "text21", "col2": "text22", "_height": "0123456789ABCDEF0", "col4": "24"})
-	rows1 = append(rows1, map[string]interface{}{"test_id": "3", "col1": "text31", "col2": "text32", "_height": "0123456789ABCDEF0", "col4": "34"})
-	rows1 = append(rows1, map[string]interface{}{"test_id": "4", "col1": "text41", "col3": "text43", "_height": "0123456789ABCDEF0"})
-	rows1 = append(rows1, map[string]interface{}{"test_id": "1", "col1": "upd", "col2": "upd", "_height": "0123456789ABCDEF0", "col4": "upd"})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "1", "col1": "text11", "col2": "text12", "_height": "0123456789ABCDEF0", "col4": "14"}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "2", "col1": "text21", "col2": "text22", "_height": "0123456789ABCDEF0", "col4": "24"}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "3", "col1": "text31", "col2": "text32", "_height": "0123456789ABCDEF0", "col4": "34"}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "4", "col1": "text41", "col3": "text43", "_height": "0123456789ABCDEF0"}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "1", "col1": "upd", "col2": "upd", "_height": "0123456789ABCDEF0", "col4": "upd"}})
 	dat.Tables["test_table1"] = rows1
 
 	var rows2 []types.EventDataRow
-	rows2 = append(rows2, map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "A", "field_2": "B"})
-	rows2 = append(rows2, map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "2", "field_1": "C", "field_2": ""})
-	rows2 = append(rows2, map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "3", "field_1": "D", "field_2": "E"})
-	rows2 = append(rows2, map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "F"})
-	rows2 = append(rows2, map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_2": "U"})
+	rows2 = append(rows2, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "A", "field_2": "B"}})
+	rows2 = append(rows2, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "2", "field_1": "C", "field_2": ""}})
+	rows2 = append(rows2, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "3", "field_1": "D", "field_2": "E"}})
+	rows2 = append(rows2, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_1": "F"}})
+	rows2 = append(rows2, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "sid_id": "1", "field_2": "U"}})
 	dat.Tables["test_table2"] = rows2
 
 	var rows3 []types.EventDataRow
-	rows3 = append(rows3, map[string]interface{}{"_height": "0123456789ABCDEF1", "val": "1"})
-	rows3 = append(rows3, map[string]interface{}{"_height": "0123456789ABCDEF2", "val": "2"})
-	rows3 = append(rows3, map[string]interface{}{"_height": "0123456789ABCDEFX", "val": "-1"})
-	rows3 = append(rows3, map[string]interface{}{"_height": "0123456789ABCDEF0"})
+	rows3 = append(rows3, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF1", "val": "1"}})
+	rows3 = append(rows3, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF2", "val": "2"}})
+	rows3 = append(rows3, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEFX", "val": "-1"}})
+	rows3 = append(rows3, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0"}})
 	dat.Tables["test_table3"] = rows3
 
 	var rows4 []types.EventDataRow
-	rows4 = append(rows4, map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-01 15:04:05", "index": "1"})
-	rows4 = append(rows4, map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-02 15:04:05", "index": "2"})
-	rows4 = append(rows4, map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-03 15:04:05", "index": "3"})
+	rows4 = append(rows4, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-01 15:04:05", "index": "1"}})
+	rows4 = append(rows4, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-02 15:04:05", "index": "2"}})
+	rows4 = append(rows4, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-03 15:04:05", "index": "3"}})
 	dat.Tables["test_table4"] = rows4
 
 	return str, dat
@@ -235,9 +235,9 @@ func getAlterBlock() (types.EventTables, types.EventData) {
 	dat.Block = "AAAAAAAAAAAAAA"
 	dat.Tables = make(map[string]types.EventDataTable)
 
-	var rows4 []types.EventDataRow
-	rows4 = append(rows4, map[string]interface{}{"_height": "AAAAAAAAAAAAAAAAA", "val": "1", "val_alter": "1"})
-	dat.Tables["test_table3"] = rows4
+	var rows5 []types.EventDataRow
+	rows5 = append(rows5, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "AAAAAAAAAAAAAAAAA", "val": "1", "val_alter": "1"}})
+	dat.Tables["test_table3"] = rows5
 
 	return str, dat
 }

@@ -10,10 +10,11 @@ type EventSpec []EventDefinition
 
 // EventDefinition struct (table name where to persist filtered events and it structure)
 type EventDefinition struct {
-	TableName string                 `json:"TableName"`
-	Filter    string                 `json:"Filter"`
-	Columns   map[string]EventColumn `json:"Columns"`
-	query     query.Query
+	TableName    string                 `json:"TableName"`
+	Filter       string                 `json:"Filter"`
+	DeleteFilter string                 `json:"DeleteFilter"`
+	Columns      map[string]EventColumn `json:"Columns"`
+	query        query.Query
 }
 
 // Validate checks the structure of an EventDefinition
@@ -21,6 +22,7 @@ func (evDef EventDefinition) Validate() error {
 	return validation.ValidateStruct(&evDef,
 		validation.Field(&evDef.TableName, validation.Required, validation.Length(1, 60)),
 		validation.Field(&evDef.Filter, validation.Required),
+		validation.Field(&evDef.DeleteFilter, validation.Required),
 		validation.Field(&evDef.Columns, validation.Required, validation.Length(1, 0)),
 	)
 }

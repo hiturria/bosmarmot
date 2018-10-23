@@ -48,12 +48,12 @@ func runVentCmd(cmd *cobra.Command, args []string) {
 	consumer := service.NewConsumer(cfg, log, make(chan types.EventData))
 	server := service.NewServer(cfg, log, consumer)
 
-	parser, err := sqlsol.SpecLoader(cfg.SpecFile, cfg.SpecDir, cfg.DBBlockTx)
+	parser, err := sqlsol.SpecLoader(cfg.SpecDir, cfg.SpecFile, cfg.DBBlockTx)
 	if err != nil {
 		log.Error("err", err)
 		os.Exit(1)
 	}
-	abiSpec, err := sqlsol.AbiLoader(cfg.AbiFile, cfg.AbiDir)
+	abiSpec, err := sqlsol.AbiLoader(cfg.AbiDir, cfg.AbiFile)
 	if err != nil {
 		log.Error("err", err)
 		os.Exit(1)

@@ -12,6 +12,7 @@ func GoodJSONConfFile(t *testing.T) string {
 		{
 			"TableName" : "UserAccounts",
 			"Filter" : "LOG0 = 'UserAccounts'",
+			"DeleteFilter": "CRUD_ACTION = 'delete'",
 			"Columns"  : {
 				"userAddress" : {"name" : "address", "type": "address", "primary" : true},
 				"userName": {"name" : "username", "type": "string", "primary" : false},
@@ -22,6 +23,7 @@ func GoodJSONConfFile(t *testing.T) string {
 		{
 		"TableName" : "TEST_TABLE",
 		"Filter" : "Log1Text = 'EVENT_TEST'",
+		"DeleteFilter": "CRUD_ACTION = 'delete'",
 		"Columns"  : {
 			"key"		: {"name" : "Index",    "type": "uint256", "primary" : true},
 			"blocknum"  : {"name" : "Block",    "type": "uint256", "primary" : false},
@@ -59,6 +61,7 @@ func UnknownTypeJSONConfFile(t *testing.T) string {
 		{
 			"TableName" : "UserAccounts",
 			"Filter" : "LOG0 = 'UserAccounts'",
+			"DeleteFilter": "CRUD_ACTION = 'delete'",
 			"Event"  : {
 				"anonymous": false,
 				"inputs": [{
@@ -85,6 +88,7 @@ func UnknownTypeJSONConfFile(t *testing.T) string {
 		{
 			"TableName" : "EventTest",
 			"Filter" : "LOG0 = 'EventTest'",
+			"DeleteFilter": "CRUD_ACTION = 'delete'",
 			"Event"  : {
 				"anonymous": false,
 				"inputs": [{
@@ -153,28 +157,7 @@ func DuplicatedColNameJSONConfFile(t *testing.T) string {
 		{
 			"TableName" : "DUPLICATED_COLUMN",
 			"Filter" : "LOG0 = 'UserAccounts'",
-			"Event"  : {
-				"anonymous": false,
-				"inputs": [{
-					"indexed": false,
-					"name": "userName",
-					"type": "string"
-				}, {
-					"indexed": false,
-					"name": "userAddress",
-					"type": "address"
-				}, {
-					"indexed": false,
-					"name": "userBool",
-					"type": "bool"
-				}, {
-					"indexed": false,
-					"name": "userId",
-					"type": "uint"
-				}],
-				"name": "UpdateUserAccount",
-				"type": "event"
-			},
+			"DeleteFilter": "CRUD_ACTION = 'delete'",
 			"Columns"  : {
 				"userAddress" : {"name" : "address", "primary" : true},
 				"userName": {"name" : "duplicated", "primary" : false},

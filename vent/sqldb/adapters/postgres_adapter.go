@@ -308,7 +308,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 		insValues += "$" + fmt.Sprintf("%d", i)
 
 		//find data for column
-		if value, ok := row[tableColumn.Name]; ok {
+		if value, ok := row.RowData[tableColumn.Name]; ok {
 			// column found (not null)
 			// load values
 			pointers = append(pointers, &value)
