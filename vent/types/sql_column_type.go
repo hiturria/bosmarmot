@@ -13,6 +13,7 @@ const (
 	SQLColumnTypeVarchar
 	SQLColumnTypeTimeStamp
 	SQLColumnTypeNumeric
+	SQLColumnTypeJSON
 )
 
 // IsNumeric determines if an sqlColumnType is numeric

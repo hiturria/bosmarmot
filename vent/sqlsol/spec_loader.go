@@ -61,14 +61,14 @@ func getBlockTxTablesDefinition() types.EventTables {
 
 	blockCol[types.BlockHeaderLabel] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelBlockHeader,
-		Type:    types.SQLColumnTypeText,
+		Type:    types.SQLColumnTypeJSON,
 		Primary: false,
 		Order:   2,
 	}
 
 	blockCol[types.BlockTxExecLabel] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelTxExec,
-		Type:    types.SQLColumnTypeText,
+		Type:    types.SQLColumnTypeJSON,
 		Primary: false,
 		Order:   3,
 	}
@@ -108,35 +108,35 @@ func getBlockTxTablesDefinition() types.EventTables {
 
 	txCol[types.TxEnvelopeLabel] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelEnvelope,
-		Type:    types.SQLColumnTypeText,
+		Type:    types.SQLColumnTypeJSON,
 		Primary: false,
 		Order:   5,
 	}
 
 	txCol[types.TxEventsLabel] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelEvents,
-		Type:    types.SQLColumnTypeText,
+		Type:    types.SQLColumnTypeJSON,
 		Primary: false,
 		Order:   6,
 	}
 
 	txCol[types.TxResultLabel] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelResult,
-		Type:    types.SQLColumnTypeText,
+		Type:    types.SQLColumnTypeJSON,
 		Primary: false,
 		Order:   7,
 	}
 
 	txCol[types.TxReceiptLabel] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelReceipt,
-		Type:    types.SQLColumnTypeText,
+		Type:    types.SQLColumnTypeJSON,
 		Primary: false,
 		Order:   8,
 	}
 
 	txCol[types.TxExceptionLabel] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelException,
-		Type:    types.SQLColumnTypeText,
+		Type:    types.SQLColumnTypeJSON,
 		Primary: false,
 		Order:   9,
 	}

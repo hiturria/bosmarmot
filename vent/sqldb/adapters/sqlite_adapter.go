@@ -19,6 +19,7 @@ var sqliteDataTypes = map[types.SQLColumnType]string{
 	types.SQLColumnTypeVarchar:   "VARCHAR",
 	types.SQLColumnTypeTimeStamp: "TIMESTAMP",
 	types.SQLColumnTypeNumeric:   "NUMERIC",
+	types.SQLColumnTypeJSON:      "TEXT",
 }
 
 // SQLiteAdapter implements DBAdapter for SQLiteDB
@@ -140,8 +141,8 @@ func (adapter *SQLiteAdapter) LastBlockIDQuery() string {
 		types.SQLColumnLabelId,                         // max
 		types.SQLColumnLabelId,                         // as
 		types.SQLLogTableName,                          // from
-		types.SQLColumnLabelHeight,                      // coalesce
-		types.SQLColumnLabelHeight,                      // as
+		types.SQLColumnLabelHeight,                     // coalesce
+		types.SQLColumnLabelHeight,                     // as
 		types.SQLLogTableName,                          // from
 		types.SQLColumnLabelId, types.SQLColumnLabelId) // on
 }
@@ -151,7 +152,7 @@ func (adapter *SQLiteAdapter) FindTableQuery() string {
 	query := "SELECT COUNT(*) found FROM %s WHERE %s = $1;"
 
 	return fmt.Sprintf(query,
-		types.SQLDictionaryTableName, // from
+		types.SQLDictionaryTableName,  // from
 		types.SQLColumnLabelTableName) // where
 
 }
@@ -171,7 +172,7 @@ func (adapter *SQLiteAdapter) TableDefinitionQuery() string {
 	return fmt.Sprintf(query,
 		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType, // select
 		types.SQLColumnLabelColumnLength, types.SQLColumnLabelPrimaryKey, // select
-		types.SQLDictionaryTableName,   // from
+		types.SQLDictionaryTableName,    // from
 		types.SQLColumnLabelTableName,   // where
 		types.SQLColumnLabelColumnOrder) // order by
 
@@ -216,7 +217,7 @@ func (adapter *SQLiteAdapter) SelectLogQuery() string {
 
 	return fmt.Sprintf(query,
 		types.SQLColumnLabelTableName, types.SQLColumnLabelEventName, // select
-		types.SQLLogTableName,     // from
+		types.SQLLogTableName,      // from
 		types.SQLColumnLabelHeight) // where
 }
 
@@ -227,7 +228,7 @@ func (adapter *SQLiteAdapter) InsertLogQuery() string {
 		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5);`
 
 	return fmt.Sprintf(query,
-		types.SQLLogTableName,                                                                     // insert
+		types.SQLLogTableName,                                                                      // insert
 		types.SQLColumnLabelTimeStamp, types.SQLColumnLabelRowCount, types.SQLColumnLabelTableName, // fields
 		types.SQLColumnLabelEventName, types.SQLColumnLabelEventFilter, types.SQLColumnLabelHeight) // fields
 }

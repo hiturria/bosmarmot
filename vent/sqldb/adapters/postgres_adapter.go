@@ -18,6 +18,7 @@ var pgDataTypes = map[types.SQLColumnType]string{
 	types.SQLColumnTypeVarchar:   "VARCHAR",
 	types.SQLColumnTypeTimeStamp: "TIMESTAMP",
 	types.SQLColumnTypeNumeric:   "NUMERIC",
+	types.SQLColumnTypeJSON:      "JSON",
 }
 
 // PostgresAdapter implements DBAdapter for Postgres
@@ -162,8 +163,8 @@ func (adapter *PostgresAdapter) LastBlockIDQuery() string {
 		types.SQLColumnLabelId,                // max
 		types.SQLColumnLabelId,                // as
 		adapter.Schema, types.SQLLogTableName, // from
-		types.SQLColumnLabelHeight,             // coalesce
-		types.SQLColumnLabelHeight,             // as
+		types.SQLColumnLabelHeight,            // coalesce
+		types.SQLColumnLabelHeight,            // as
 		adapter.Schema, types.SQLLogTableName, // from
 		types.SQLColumnLabelId, types.SQLColumnLabelId) // on
 
