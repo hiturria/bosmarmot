@@ -22,7 +22,6 @@ func (evDef EventDefinition) Validate() error {
 	return validation.ValidateStruct(&evDef,
 		validation.Field(&evDef.TableName, validation.Required, validation.Length(1, 60)),
 		validation.Field(&evDef.Filter, validation.Required),
-		validation.Field(&evDef.DeleteFilter, validation.Required),
 		validation.Field(&evDef.Columns, validation.Required, validation.Length(1, 0)),
 	)
 }

@@ -12,7 +12,6 @@
   {
     "TableName" : "UserAccounts",
     "Filter" : "LOG1 = 'UserAccounts'",
-    "DeleteFilter": "CRUD_ACTION = 'delete'",
     "Columns"  : {
       "userAddress" : {"name" : "address", "type": "address", "primary" : true},
       "userName": {"name" : "username", "type": "string", "primary" : false}

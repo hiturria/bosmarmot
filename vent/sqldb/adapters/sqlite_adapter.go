@@ -356,7 +356,7 @@ func (adapter *SQLiteAdapter) DeleteQuery(table types.SQLTable, row types.EventD
 				values += ", "
 			}
 
-			columns += fmt.Sprintf("%s = $%d", secureColumn,i)
+			columns += fmt.Sprintf("%s = $%d", secureColumn, i)
 
 			//find data for column
 			if value, ok := row.RowData[tableColumn.Name]; ok {
@@ -369,16 +369,14 @@ func (adapter *SQLiteAdapter) DeleteQuery(table types.SQLTable, row types.EventD
 				// column NOT found (is null) and is PK
 				return "", "", nil, fmt.Errorf("error null primary key for column %s", secureColumn)
 			}
-
 		}
 	}
 
-	if columns==""{
+	if columns == "" {
 		return "", "", nil, fmt.Errorf("error primary key not found for deletion")
 	}
 
 	query := fmt.Sprintf("DELETE FROM %s WHERE %s;", table.Name, columns)
-
 
 	return query, values, pointers, nil
 }

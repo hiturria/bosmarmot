@@ -15,6 +15,7 @@ Given a sqlsol specification
   {
     "TableName" : "EventTest",
     "Filter" : "Log1Text = 'LOGEVENT1'",
+    "DeleteFilter": "CRUD_ACTION = 'delete'",
     "Columns"  : {
       "key" : {"name" : "testname", "type": "bytes32", "primary" : true},
       "description": {"name" : "testdescription", "type": "bytes32", "primary" : false, "bytesToString": true}
@@ -81,26 +82,26 @@ go install ./vent
 # Print command help:
 vent --help
 
-# Run vent command with postgres adapter, spec & abi files path:
-vent --db-adapter="postgres" --db-url="postgres://user:pass@localhost:5432/vent?sslmode=disable" --db-schema="vent" --grpc-addr="localhost:10997" --http-addr="0.0.0.0:8080" --log-level="debug" --spec-file="<sqlsol specification file path>" --abi-file="<abi file path>"
+# Run vent command with postgres adapter, spec & abi files path, also stores block & tx data:
+vent --db-adapter="postgres" --db-url="postgres://user:pass@localhost:5432/vent?sslmode=disable" --db-schema="vent" --grpc-addr="localhost:10997" --http-addr="0.0.0.0:8080" --log-level="debug" --spec-file="<sqlsol specification file path>" --abi-file="<abi file path>" --db-block=true
 
-# Run vent command with sqlite adapter, spec & abi directories path:
+# Run vent command with sqlite adapter, spec & abi directories path, does not store block & tx data:
 vent --db-adapter="sqlite" --db-url="./vent.sqlite" --grpc-addr="localhost:10997" --http-addr="0.0.0.0:8080" --log-level="debug" --spec-dir="<sqlsol specification directory path>" --abi-dir="<abi files directory path>"
 ```
 
 Configuration Flags:
 
-+ `db-adapter`: Database adapter, 'postgres' or 'sqlite' are fully supported
-+ `db-url`: PostgreSQL database URL or SQLite db file path
-+ `db-schema`: PostgreSQL database schema or empty for SQLite
-+ `http-addr`: Address to bind the HTTP server
-+ `grpc-addr`: Address to listen to gRPC Hyperledger Burrow server
-+ `log-level`: Logging level (error, warn, info, debug)
-+ `spec-file`: SQLSol specification json file (full path)
-+ `spec-dir`: Path of a folder to look for SQLSol json specification files
-+ `abi-file`: Event Abi specification file full path
-+ `abi-dir`: Path of a folder to look for event Abi specification files
-+ `db-block`: Create block & transaction tables and persist related data (true/false)
++ `db-adapter`: (string) Database adapter, 'postgres' or 'sqlite' are fully supported
++ `db-url`: (string) PostgreSQL database URL or SQLite db file path
++ `db-schema`: (string) PostgreSQL database schema or empty for SQLite
++ `http-addr`: (string) Address to bind the HTTP server
++ `grpc-addr`: (string) Address to listen to gRPC Hyperledger Burrow server
++ `log-level`: (string) Logging level (error, warn, info, debug)
++ `spec-file`: (string) SQLSol specification json file (full path)
++ `spec-dir`: (string) Path of a folder to look for SQLSol json specification files
++ `abi-file`: (string) Event Abi specification file full path
++ `abi-dir`: (string) Path of a folder to look for event Abi specification files
++ `db-block`: (boolean) Create block & transaction tables and persist related data (true/false)
 
 
 NOTES:
@@ -111,6 +112,6 @@ If `spec-dir` is given, vent will search for all `.json` spec files in given dir
 Also one of `abi-file` or `abi-dir` must be provided.
 If `abi-dir` is given, vent will search for all `.abi` spec files in given directory.
 
-if `db-block` is set to true (block explorer mode), Block and Transaction tables are created in addition to log and event tables to store block & tx info.
+if `db-block` is set to true (block explorer mode), Block and Transaction tables are created in addition to log and event tables to store block & tx raw info.
 
 It can be checked that vent is connected and ready sending a request to `http://<http-addr>/health` which will return a `200` OK response in case everything's fine.

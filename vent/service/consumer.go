@@ -85,6 +85,9 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 	}
 	defer c.GRPCConnection.Close()
 
+	// a replacer to get DeleteFilter parameters
+	replacer := strings.NewReplacer(" ", "", "'", "")
+
 	// doneCh is used for sending a "done" signal from each goroutine to the main thread
 	// eventCh is used for sending received events to the main thread to be stored in the db
 	doneCh := make(chan error)
@@ -227,15 +230,23 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 
 							rowAction := types.ActionUpsert
 
-							// get delete filter from spec
-							deleteFilter := strings.Split(strings.Replace(spec.DeleteFilter, " ", "", -1), "=")
+							var deleteFilter []string
 
+							// get delete filter from spec
+							if spec.DeleteFilter != "" {
+								deleteFilter = strings.Split(replacer.Replace(spec.DeleteFilter), "=")
+							}
 							// for each data element, maps to SQL columnName and gets its value
 							// if there is no matching column for the item, it doesn't need to be stored in db
 							for k, v := range eventData {
-								if k == deleteFilter[0] {
-									if v.(*string) == &deleteFilter[1] {
-										rowAction = types.ActionDelete
+								if len(deleteFilter) > 0 {
+									if k == deleteFilter[0] {
+										if bytes, ok := v.(*[]byte); ok {
+											str := strings.Trim(string(*bytes), "\x00")
+											if str == deleteFilter[1] {
+												rowAction = types.ActionDelete
+											}
+										}
 									}
 								}
 								if column, err := parser.GetColumn(spec.TableName, k); err == nil {

@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	"strings"
+
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"github.com/monax/bosmarmot/vent/types"
-	"strings"
 )
 
 // SQLDB implements the access to a sql database
@@ -154,7 +155,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 loop:
-// for each table in the block
+	// for each table in the block
 	for eventName, table := range eventTables {
 		safeTable = safe(table.Name)
 
@@ -185,7 +186,7 @@ loop:
 					db.Log.Debug("msg", "Error building upsert query", "err", errQuery, "value", fmt.Sprintf("%v %v", table, row))
 					return err
 				}
-				action="UPSERT"
+				action = "UPSERT"
 
 			case types.ActionDelete:
 				//prepare delete
@@ -194,7 +195,7 @@ loop:
 					db.Log.Debug("msg", "Error building delete query", "err", errQuery, "value", fmt.Sprintf("%v %v", table, row))
 					return err
 				}
-				action="DELETE"
+				action = "DELETE"
 
 			default:
 				//invalid action
@@ -203,7 +204,6 @@ loop:
 			}
 
 			query = clean(query)
-
 
 			// upsert row data
 			db.Log.Debug("msg", action, "query", query, "value", values)

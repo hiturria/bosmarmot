@@ -34,7 +34,6 @@ type DBAdapter interface {
 	InsertLogQuery() string
 	// UpsertQuery builds an INSERT... ON CONFLICT (or similar) query to upsert data in event tables based on PK
 	UpsertQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error)
-	//DeleteQuery builds an DELETE FROM event tables based on PK
+	//DeleteQuery builds a DELETE FROM event tables query based on PK
 	DeleteQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error)
-
 }
