@@ -8,6 +8,7 @@ import (
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/sqldb/adapters"
 	"github.com/monax/bosmarmot/vent/types"
+	"strings"
 )
 
 // SQLDB implements the access to a sql database
@@ -130,7 +131,7 @@ func (db *SQLDB) SynchronizeDB(eventTables types.EventTables) error {
 
 // SetBlock inserts or updates multiple rows and stores log info in SQL tables
 func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventData) error {
-	db.Log.Debug("msg", "Set Block..........")
+	db.Log.Debug("msg", "Sinchronize Block..........")
 
 	var safeTable string
 	var logStmt *sql.Stmt
@@ -153,7 +154,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 loop:
-	// for each table in the block
+// for each table in the block
 	for eventName, table := range eventTables {
 		safeTable = safe(table.Name)
 
@@ -169,19 +170,46 @@ loop:
 
 		// for Each Row
 		for _, row := range dataRows {
-			query, values, pointers, errQuery := db.DBAdapter.UpsertQuery(table, row)
-			query = clean(query)
 
-			if errQuery != nil {
-				db.Log.Debug("msg", "Error building query", "err", errQuery, "value", fmt.Sprintf("%v %v", table, row))
-				return err
+			var query string
+			var values string
+			var pointers []interface{}
+			var errQuery error
+			var action string
+
+			switch row.Action {
+			case types.ActionUpsert:
+				//prepare upsert
+				query, values, pointers, errQuery = db.DBAdapter.UpsertQuery(table, row)
+				if errQuery != nil {
+					db.Log.Debug("msg", "Error building upsert query", "err", errQuery, "value", fmt.Sprintf("%v %v", table, row))
+					return err
+				}
+				action="UPSERT"
+
+			case types.ActionDelete:
+				//prepare delete
+				query, values, pointers, errQuery = db.DBAdapter.DeleteQuery(table, row)
+				if errQuery != nil {
+					db.Log.Debug("msg", "Error building delete query", "err", errQuery, "value", fmt.Sprintf("%v %v", table, row))
+					return err
+				}
+				action="DELETE"
+
+			default:
+				//invalid action
+				db.Log.Debug("msg", "Error building query", "value", fmt.Sprintf("%d", row.Action))
+				return fmt.Errorf("invalid row action %d", row.Action)
 			}
 
+			query = clean(query)
+
+
 			// upsert row data
-			db.Log.Debug("msg", "UPSERT", "query", query, "value", values)
+			db.Log.Debug("msg", action, "query", query, "value", values)
 			_, err = tx.Exec(query, pointers...)
 			if err != nil {
-				db.Log.Debug("msg", "Error upserting row", "err", err, "value", values)
+				db.Log.Debug("msg", "Error "+strings.ToLower(action)+"ing row", "err", err, "value", values)
 				// exits from all loops -> continue in close log stmt
 				break loop
 			}

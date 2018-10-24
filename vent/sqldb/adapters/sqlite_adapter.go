@@ -333,3 +333,52 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable, row types.EventD
 
 	return query, values, pointers, nil
 }
+
+func (adapter *SQLiteAdapter) DeleteQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error) {
+
+	pointers := make([]interface{}, 0)
+	columns := ""
+	values := ""
+	i := 0
+
+	// for each column in table
+	for _, tableColumn := range table.Columns {
+
+		//only PK for delete
+		if tableColumn.Primary {
+			i++
+
+			secureColumn := adapter.SecureColumnName(tableColumn.Name)
+
+			// WHERE ..........
+			if columns != "" {
+				columns += "AND "
+				values += ", "
+			}
+
+			columns += fmt.Sprintf("%s = $%d", secureColumn,i)
+
+			//find data for column
+			if value, ok := row.RowData[tableColumn.Name]; ok {
+				// column found (not null)
+				// load values
+				pointers = append(pointers, &value)
+				values += fmt.Sprint(value)
+
+			} else {
+				// column NOT found (is null) and is PK
+				return "", "", nil, fmt.Errorf("error null primary key for column %s", secureColumn)
+			}
+
+		}
+	}
+
+	if columns==""{
+		return "", "", nil, fmt.Errorf("error primary key not found for deletion")
+	}
+
+	query := fmt.Sprintf("DELETE FROM %s WHERE %s;", table.Name, columns)
+
+
+	return query, values, pointers, nil
+}

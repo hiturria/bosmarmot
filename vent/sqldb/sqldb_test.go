@@ -214,6 +214,8 @@ func getBlock() (types.EventTables, types.EventData) {
 	rows4 = append(rows4, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-01 15:04:05", "index": "1"}})
 	rows4 = append(rows4, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-02 15:04:05", "index": "2"}})
 	rows4 = append(rows4, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-03 15:04:05", "index": "3"}})
+	rows4 = append(rows4, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-03 15:04:05", "index": "4"}})
+	rows4 = append(rows4, types.EventDataRow{Action: types.ActionDelete, RowData: map[string]interface{}{"_height": "0123456789ABCDEF0", "time": "2006-01-03 15:04:05", "index": "3"}})
 	dat.Tables["test_table4"] = rows4
 
 	return str, dat
