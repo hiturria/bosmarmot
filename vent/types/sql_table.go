@@ -44,15 +44,18 @@ const (
 	// log
 	SQLColumnLabelId          = "_id"
 	SQLColumnLabelTimeStamp   = "_timestamp"
+	SQLColumnLabelTableName   = "_tablename" // common filed
 	SQLColumnLabelEventName   = "_eventname"
-	SQLColumnLabelRowCount    = "_rowcount"
 	SQLColumnLabelEventFilter = "_eventfilter"
 	SQLColumnLabelHeight      = "_height"
-
-	// common
-	SQLColumnLabelTableName = "_tablename"
+	SQLColumnLabelTxHash      = "_txhash" // common filed
+	SQLColumnLabelAction      = "_action"
+	SQLColumnLabelDataRow     = "_datarow"
+	SQLColumnLabelSqlStmt     = "_sqlstmt"
+	SQLColumnLabelSqlValues   = "_sqlvalues"
 
 	// dictionary
+	//SQLColumnLabelTableName   = "_tablename"
 	SQLColumnLabelColumnName   = "_columnname"
 	SQLColumnLabelColumnType   = "_columntype"
 	SQLColumnLabelColumnLength = "_columnlength"
@@ -60,8 +63,8 @@ const (
 	SQLColumnLabelColumnOrder  = "_columnorder"
 
 	// context
-	SQLColumnLabelIndex       = "_index"
-	SQLColumnLabelTxHash      = "_txhash"
+	SQLColumnLabelIndex = "_index"
+	//SQLColumnLabelTxHash    = "_txhash"
 	SQLColumnLabelEventType   = "_eventtype"
 	SQLColumnLabelBlockHeader = "_blockheader"
 	SQLColumnLabelTxType      = "_txtype"

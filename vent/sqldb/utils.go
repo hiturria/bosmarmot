@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/monax/bosmarmot/vent/types"
+	"encoding/json"
 )
 
 // findTable checks if a table exists in the default schema
@@ -14,9 +15,9 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 	safeTable := safe(tableName)
 	query := clean(db.DBAdapter.FindTableQuery())
 
-	db.Log.Debug("msg", "FIND TABLE", "query", query, "value", safeTable)
+	db.Log.Info("msg", "FIND TABLE", "query", query, "value", safeTable)
 	if err := db.DB.QueryRow(query, tableName).Scan(&found); err != nil {
-		db.Log.Debug("msg", "Error finding table", "err", err)
+		db.Log.Info("msg", "Error finding table", "err", err)
 		return false, err
 	}
 
@@ -57,7 +58,7 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 		Order:   3,
 	}
 
-	logCol[types.EventNameLabel] = types.SQLTableColumn{
+	logCol[types.SQLColumnLabelEventName] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelEventName,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
@@ -65,27 +66,60 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 		Order:   4,
 	}
 
-	logCol[types.SQLColumnLabelRowCount] = types.SQLTableColumn{
-		Name:    types.SQLColumnLabelRowCount,
-		Type:    types.SQLColumnTypeInt,
+	logCol[types.SQLColumnLabelEventFilter] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelEventFilter,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
 		Primary: false,
 		Order:   5,
 	}
 
-	logCol[types.SQLColumnLabelEventFilter] = types.SQLTableColumn{
-		Name:    types.SQLColumnLabelEventFilter,
+	logCol[types.SQLColumnLabelHeight] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelHeight,
 		Type:    types.SQLColumnTypeVarchar,
 		Length:  100,
 		Primary: false,
 		Order:   6,
 	}
 
-	logCol[types.BlockHeightLabel] = types.SQLTableColumn{
-		Name:    types.SQLColumnLabelHeight,
+	logCol[types.SQLColumnLabelTxHash] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelTxHash,
 		Type:    types.SQLColumnTypeVarchar,
-		Length:  100,
+		Length:  40,
 		Primary: false,
 		Order:   7,
+	}
+
+	logCol[types.SQLColumnLabelAction] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelAction,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  20,
+		Primary: false,
+		Order:   8,
+	}
+
+	logCol[types.SQLColumnLabelDataRow] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelDataRow,
+		Type:    types.SQLColumnTypeJSON,
+		Length:  0,
+		Primary: false,
+		Order:   9,
+	}
+
+	logCol[types.SQLColumnLabelSqlStmt] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelSqlStmt,
+		Type:    types.SQLColumnTypeText,
+		Length:  0,
+		Primary: false,
+		Order:   10,
+	}
+
+	logCol[types.SQLColumnLabelSqlValues] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelSqlValues,
+		Type:    types.SQLColumnTypeText,
+		Length:  0,
+		Primary: false,
+		Order:   11,
 	}
 
 	// dictionary table
@@ -163,17 +197,17 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 	}
 
 	if !found {
-		db.Log.Debug("msg", "Error table not found", "value", safeTable)
+		db.Log.Info("msg", "Error table not found", "value", safeTable)
 		return table, errors.New("Error table not found " + safeTable)
 	}
 
 	table.Name = safeTable
 	query := clean(db.DBAdapter.TableDefinitionQuery())
 
-	db.Log.Debug("msg", "QUERY STRUCTURE", "query", query, "value", safeTable)
+	db.Log.Info("msg", "QUERY STRUCTURE", "query", query, "value", safeTable)
 	rows, err := db.DB.Query(query, safeTable)
 	if err != nil {
-		db.Log.Debug("msg", "Error querying table structure", "err", err)
+		db.Log.Info("msg", "Error querying table structure", "err", err)
 		return table, err
 	}
 	defer rows.Close()
@@ -189,7 +223,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 		var column types.SQLTableColumn
 
 		if err = rows.Scan(&columnName, &columnSQLType, &columnLength, &columnIsPK); err != nil {
-			db.Log.Debug("msg", "Error scanning table structure", "err", err)
+			db.Log.Info("msg", "Error scanning table structure", "err", err)
 			return table, err
 		}
 
@@ -208,7 +242,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 	}
 
 	if err = rows.Err(); err != nil {
-		db.Log.Debug("msg", "Error during rows iteration", "err", err)
+		db.Log.Info("msg", "Error during rows iteration", "err", err)
 		return table, err
 	}
 
@@ -217,16 +251,20 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 }
 
 // alterTable alters the structure of a SQL table & add info to the dictionary
-func (db *SQLDB) alterTable(newTable types.SQLTable) error {
+func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
 	db.Log.Info("msg", "Altering table", "value", newTable.Name)
 
-	safeTable := safe(newTable.Name)
+	// prepare log query
+	logQuery := clean(db.DBAdapter.InsertLogQuery())
 
 	// current table structure
+	safeTable := safe(newTable.Name)
 	currentTable, err := db.getTableDef(safeTable)
 	if err != nil {
 		return err
 	}
+
+	sqlValues,_:= db.getJSON(nil)
 
 	// for each column in the new table structure
 	for _, newColumn := range newTable.Columns {
@@ -245,21 +283,43 @@ func (db *SQLDB) alterTable(newTable types.SQLTable) error {
 			safeCol := safe(newColumn.Name)
 			query, dictionary := db.DBAdapter.AlterColumnQuery(safeTable, safeCol, newColumn.Type, newColumn.Length, newColumn.Order)
 
-			db.Log.Debug("msg", "ALTER TABLE", "query", safe(query))
+			//alter column
+			db.Log.Info("msg", "ALTER TABLE", "query", safe(query))
 			_, err = db.DB.Exec(safe(query))
+
 			if err != nil {
 				if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedColumn) {
 					db.Log.Warn("msg", "Duplicate column", "value", safeCol)
 				} else {
-					db.Log.Debug("msg", "Error altering table", "err", err)
+					db.Log.Info("msg", "Error altering table", "err", err)
 					return err
 				}
 			} else {
-				db.Log.Debug("msg", "STORE DICTIONARY", "query", clean(dictionary))
+				//store dictionary
+				db.Log.Info("msg", "STORE DICTIONARY", "query", clean(dictionary))
 				_, err = db.DB.Exec(dictionary)
 				if err != nil {
-					db.Log.Debug("msg", "Error storing  dictionary", "err", err)
+					db.Log.Info("msg", "Error storing  dictionary", "err", err)
 					return err
+				}
+
+				//insert log (if not start database)
+				if eventName != string(types.ActionInitialize) {
+
+					// Marshal the table into a JSON string.
+					var jsonData []byte
+					jsonData, err = db.getJSON(newColumn)
+					if err != nil {
+						db.Log.Info("msg", "error marshaling column", "err", err, "value", fmt.Sprintf("%v", newColumn))
+						return err
+					}
+
+					//insert log
+					_, err = db.DB.Exec(logQuery, newTable.Name, eventName, newTable.Filter, nil, nil, types.ActionAlterTable, jsonData, query,sqlValues)
+					if err != nil {
+						db.Log.Info("msg", "Error inserting log", "err", err)
+						return err
+					}
 				}
 			}
 		}
@@ -287,38 +347,40 @@ func (db *SQLDB) getSelectQuery(table types.SQLTable, height string) (string, er
 }
 
 // createTable creates a new table
-func (db *SQLDB) createTable(table types.SQLTable) error {
+func (db *SQLDB) createTable(table types.SQLTable, eventName string) error {
 	db.Log.Info("msg", "Creating Table", "value", table.Name)
 
-	safeTable := safe(table.Name)
+	// prepare log query
+	logQuery := clean(db.DBAdapter.InsertLogQuery())
 
 	// sort columns
 	columns := len(table.Columns)
 	sortedColumns := make([]types.SQLTableColumn, columns)
-
 	for _, tableColumn := range table.Columns {
 		if tableColumn.Order <= 0 {
-			db.Log.Debug("msg", "column_order <=0")
+			db.Log.Info("msg", "column_order <=0")
 			return fmt.Errorf("table definition error,%s has column_order <=0 (minimum value = 1)", tableColumn.Name)
 		} else if tableColumn.Order-1 > columns {
-			db.Log.Debug("msg", "column_order > total_columns")
+			db.Log.Info("msg", "column_order > total_columns")
 			return fmt.Errorf("table definition error, %s has column_order > total_columns", tableColumn.Name)
 		} else if sortedColumns[tableColumn.Order-1].Order != 0 {
-			db.Log.Debug("msg", "duplicated column_oder")
+			db.Log.Info("msg", "duplicated column_oder")
 			return fmt.Errorf("table definition error, %s and %s have duplicated column_order", sortedColumns[tableColumn.Order-1].Name, tableColumn.Name)
 		} else {
 			sortedColumns[tableColumn.Order-1] = tableColumn
 		}
 	}
 
+	//get create table query
+	safeTable := safe(table.Name)
 	query, dictionary := db.DBAdapter.CreateTableQuery(safeTable, sortedColumns)
 	if query == "" {
-		db.Log.Debug("msg", "empty CREATE TABLE query")
+		db.Log.Info("msg", "empty CREATE TABLE query")
 		return errors.New("empty CREATE TABLE query")
 	}
 
 	// create table
-	db.Log.Debug("msg", "CREATE TABLE", "query", clean(query))
+	db.Log.Info("msg", "CREATE TABLE", "query", clean(query))
 	_, err := db.DB.Exec(query)
 	if err != nil {
 		if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
@@ -326,21 +388,43 @@ func (db *SQLDB) createTable(table types.SQLTable) error {
 			return nil
 
 		} else if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeInvalidType) {
-			db.Log.Debug("msg", "Error creating table, invalid datatype", "err", err)
+			db.Log.Info("msg", "Error creating table, invalid datatype", "err", err)
 			return err
 
 		}
-		db.Log.Debug("msg", "Error creating table", "err", err)
+		db.Log.Info("msg", "Error creating table", "err", err)
 		return err
 	}
 
-	db.Log.Debug("msg", "STORE DICTIONARY", "query", clean(dictionary))
+	//store dictionary
+	db.Log.Info("msg", "STORE DICTIONARY", "query", clean(dictionary))
 	_, err = db.DB.Exec(dictionary)
 	if err != nil {
-		db.Log.Debug("msg", "Error storing  dictionary", "err", err)
+		db.Log.Info("msg", "Error storing  dictionary", "err", err)
 		return err
 	}
 
+	//insert log (if not start database)
+	if eventName != string(types.ActionInitialize) {
+
+		// Marshal the table into a JSON string.
+		var jsonData []byte
+		jsonData, err = db.getJSON(table)
+		if err != nil {
+			db.Log.Info("msg", "error marshaling table", "err", err, "value", fmt.Sprintf("%v", table))
+			return err
+		}
+
+		sqlValues,_:= db.getJSON(nil)
+
+
+		//insert log
+		_, err = db.DB.Exec(logQuery, table.Name, eventName, table.Filter, nil, nil, types.ActionCreateTable, jsonData, query,sqlValues)
+		if err != nil {
+			db.Log.Info("msg", "Error inserting log", "err", err)
+			return err
+		}
+	}
 	return nil
 }
 
@@ -350,11 +434,11 @@ func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 	tables := make(types.EventTables)
 
 	query := clean(db.DBAdapter.SelectLogQuery())
-	db.Log.Debug("msg", "QUERY LOG", "query", query, "value", block)
+	db.Log.Info("msg", "QUERY LOG", "query", query, "value", block)
 
 	rows, err := db.DB.Query(query, block)
 	if err != nil {
-		db.Log.Debug("msg", "Error querying log", "err", err)
+		db.Log.Info("msg", "Error querying log", "err", err)
 		return tables, err
 	}
 	defer rows.Close()
@@ -365,13 +449,13 @@ func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
 
 		err = rows.Scan(&tableName, &eventName)
 		if err != nil {
-			db.Log.Debug("msg", "Error scanning table structure", "err", err)
+			db.Log.Info("msg", "Error scanning table structure", "err", err)
 			return tables, err
 		}
 
 		err = rows.Err()
 		if err != nil {
-			db.Log.Debug("msg", "Error scanning table structure", "err", err)
+			db.Log.Info("msg", "Error scanning table structure", "err", err)
 			return tables, err
 		}
 
@@ -396,4 +480,28 @@ func clean(parameter string) string {
 func safe(parameter string) string {
 	replacer := strings.NewReplacer(";", "", ",", "")
 	return replacer.Replace(parameter)
+}
+
+//getJSON returns marshaled JSON
+func (db *SQLDB) getJSON(JSON interface{}) ([]byte,error){
+	if JSON!=nil{
+		return json.Marshal(JSON)
+	}
+	return 	json.Marshal("")
+}
+
+//getJSON returns marshaled JSON
+func (db *SQLDB) getJSONFromValues(values []interface{}) ([]byte,error){
+	if values!=nil{
+		return json.Marshal(values)
+	}
+	return 	json.Marshal("")
+}
+
+//getValuesFromJSON returns un marshaled JSON
+func (db *SQLDB) getValuesFromJSON(JSON string) ([]interface{},error) {
+	pointers := make([]interface{}, 0)
+	bytes:=[]byte(JSON)
+	err:=json.Unmarshal(bytes,&pointers)
+	return 	pointers,err
 }

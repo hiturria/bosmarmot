@@ -39,21 +39,21 @@ func NewPostgresAdapter(schema string, log *logger.Logger) *PostgresAdapter {
 func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
-		adapter.Log.Debug("msg", "Error creating database connection", "err", err)
+		adapter.Log.Info("msg", "Error creating database connection", "err", err)
 		return nil, err
 	}
 
 	// if there is a supplied Schema
 	if adapter.Schema != "" {
 		if err = db.Ping(); err != nil {
-			adapter.Log.Debug("msg", "Error opening database connection", "err", err)
+			adapter.Log.Info("msg", "Error opening database connection", "err", err)
 			return nil, err
 		}
 
 		var found bool
 
 		query := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_namespace n WHERE n.nspname = '%s');`, adapter.Schema)
-		adapter.Log.Debug("msg", "FIND SCHEMA", "query", query)
+		adapter.Log.Info("msg", "FIND SCHEMA", "query", query)
 
 		if err := db.QueryRow(query).Scan(&found); err == nil {
 			if !found {
@@ -62,7 +62,7 @@ func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 			adapter.Log.Info("msg", "Creating schema")
 
 			query = fmt.Sprintf("CREATE SCHEMA %s;", adapter.Schema)
-			adapter.Log.Debug("msg", "CREATE SCHEMA", "query", query)
+			adapter.Log.Info("msg", "CREATE SCHEMA", "query", query)
 
 			if _, err = db.Exec(query); err != nil {
 				if adapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedSchema) {
@@ -71,7 +71,7 @@ func (adapter *PostgresAdapter) Open(dbURL string) (*sql.DB, error) {
 				}
 			}
 		} else {
-			adapter.Log.Debug("msg", "Error searching schema", "err", err)
+			adapter.Log.Info("msg", "Error searching schema", "err", err)
 			return nil, err
 		}
 	} else {
@@ -194,10 +194,10 @@ func (adapter *PostgresAdapter) TableDefinitionQuery() string {
 			%s;`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType, // select
+		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType,   // select
 		types.SQLColumnLabelColumnLength, types.SQLColumnLabelPrimaryKey, // select
-		adapter.Schema, types.SQLDictionaryTableName, // from
-		types.SQLColumnLabelTableName,   // where
+		adapter.Schema, types.SQLDictionaryTableName,                     // from
+		types.SQLColumnLabelTableName,                                    // where
 		types.SQLColumnLabelColumnOrder) // order by
 
 }
@@ -242,20 +242,22 @@ func (adapter *PostgresAdapter) SelectLogQuery() string {
 
 	return fmt.Sprintf(query,
 		types.SQLColumnLabelTableName, types.SQLColumnLabelEventName, // select
-		adapter.Schema, types.SQLLogTableName, // from
+		adapter.Schema, types.SQLLogTableName,                        // from
 		types.SQLColumnLabelHeight) // where
 }
 
 // InsertLogQuery returns a query to insert a row in log table
 func (adapter *PostgresAdapter) InsertLogQuery() string {
 	query := `
-		INSERT INTO %s.%s (%s,%s,%s,%s,%s,%s)
-		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5);`
+		INSERT INTO %s.%s (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5, $6 ,$7, $8, $9);`
 
 	return fmt.Sprintf(query,
 		adapter.Schema, types.SQLLogTableName, // insert
-		types.SQLColumnLabelTimeStamp, types.SQLColumnLabelRowCount, types.SQLColumnLabelTableName, // fields
-		types.SQLColumnLabelEventName, types.SQLColumnLabelEventFilter, types.SQLColumnLabelHeight) // fields
+		//fields
+		types.SQLColumnLabelTimeStamp, types.SQLColumnLabelTableName, types.SQLColumnLabelEventName, types.SQLColumnLabelEventFilter,
+		types.SQLColumnLabelHeight, types.SQLColumnLabelTxHash, types.SQLColumnLabelAction, types.SQLColumnLabelDataRow,
+		types.SQLColumnLabelSqlStmt, types.SQLColumnLabelSqlValues)
 }
 
 // ErrorEquals verify if an error is of a given SQL type
@@ -282,15 +284,15 @@ func (adapter *PostgresAdapter) ErrorEquals(err error, sqlErrorType types.SQLErr
 	return false
 }
 
-func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error) {
+func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.EventDataRow) (string, string, interface{}, []interface{}, error) {
 
 	pointers := make([]interface{}, 0)
-	null := sql.NullString{Valid: false}
 
 	columns := ""
 	insValues := ""
 	updValues := ""
 	values := ""
+	var txHash interface{}=nil
 
 	i := 0
 
@@ -299,6 +301,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 		secureColumn := adapter.SecureColumnName(tableColumn.Name)
 
 		i++
+
 
 		// INSERT INTO TABLE (*columns).........
 		if columns != "" {
@@ -311,6 +314,11 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 
 		//find data for column
 		if value, ok := row.RowData[tableColumn.Name]; ok {
+			//load hash value
+			if tableColumn.Name==types.SQLColumnLabelTxHash{
+				txHash=value
+			}
+
 			// column found (not null)
 			// load values
 			pointers = append(pointers, &value)
@@ -327,10 +335,11 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 			}
 		} else if tableColumn.Primary {
 			// column NOT found (is null) and is PK
-			return "", "", nil, fmt.Errorf("error null primary key for column %s", secureColumn)
+			return "", "", nil, nil, fmt.Errorf("error null primary key for column %s", secureColumn)
 		} else {
 			// column NOT found (is null) and is NOT PK
-			pointers = append(pointers, &null)
+			//pointers = append(pointers, &null)
+			pointers = append(pointers, nil)
 			values += "null"
 		}
 	}
@@ -344,7 +353,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 	}
 	query += ";"
 
-	return query, values, pointers, nil
+	return query, values, txHash, pointers, nil
 }
 
 func (adapter *PostgresAdapter) DeleteQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error) {
@@ -392,4 +401,14 @@ func (adapter *PostgresAdapter) DeleteQuery(table types.SQLTable, row types.Even
 	query := fmt.Sprintf("DELETE FROM %s.%s WHERE %s;", adapter.Schema, table.Name, columns)
 
 	return query, values, pointers, nil
+}
+
+func (adapter *PostgresAdapter) RestoreDBQuery() string {
+	return fmt.Sprintf(`SELECT %s, %s, %s, %s FROM %s.%s 
+								WHERE to_char(%s,'YYYY-MM-DD HH24:MI:SS')<=$1 
+								ORDER BY %s;`,
+			types.SQLColumnLabelTableName,types.SQLColumnLabelAction,types.SQLColumnLabelSqlStmt,types.SQLColumnLabelSqlValues,
+			adapter.Schema,types.SQLLogTableName,
+			types.SQLColumnLabelTimeStamp,
+			types.SQLColumnLabelId)
 }

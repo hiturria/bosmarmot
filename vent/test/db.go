@@ -3,7 +3,6 @@ package test
 import (
 	"fmt"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/sqldb"
 	"github.com/monax/bosmarmot/vent/types"
+	"os"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz")

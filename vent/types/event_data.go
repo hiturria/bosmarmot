@@ -1,12 +1,15 @@
 package types
 
 // CRUDAction generic type
-type CRUDAction int
+type CRUDAction string
 
 const (
-	ActionDelete CRUDAction = iota
-	ActionUpsert
-	ActionRead
+	ActionDelete CRUDAction = "DELETE"
+	ActionUpsert CRUDAction = "UPSERT"
+	ActionRead CRUDAction = "READ"
+	ActionCreateTable CRUDAction = "CREATE"
+	ActionAlterTable CRUDAction = "ALTER"
+	ActionInitialize CRUDAction = "_INITIALIZE_VENT"
 )
 
 // EventData contains data for each block of events

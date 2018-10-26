@@ -138,12 +138,12 @@ func (adapter *SQLiteAdapter) LastBlockIDQuery() string {
 			FROM ll LEFT OUTER JOIN %s log ON (ll.%s = log.%s);`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnLabelId,                         // max
-		types.SQLColumnLabelId,                         // as
-		types.SQLLogTableName,                          // from
-		types.SQLColumnLabelHeight,                     // coalesce
-		types.SQLColumnLabelHeight,                     // as
-		types.SQLLogTableName,                          // from
+		types.SQLColumnLabelId,     // max
+		types.SQLColumnLabelId,     // as
+		types.SQLLogTableName,      // from
+		types.SQLColumnLabelHeight, // coalesce
+		types.SQLColumnLabelHeight, // as
+		types.SQLLogTableName,      // from
 		types.SQLColumnLabelId, types.SQLColumnLabelId) // on
 }
 
@@ -152,7 +152,7 @@ func (adapter *SQLiteAdapter) FindTableQuery() string {
 	query := "SELECT COUNT(*) found FROM %s WHERE %s = $1;"
 
 	return fmt.Sprintf(query,
-		types.SQLDictionaryTableName,  // from
+		types.SQLDictionaryTableName, // from
 		types.SQLColumnLabelTableName) // where
 
 }
@@ -170,10 +170,10 @@ func (adapter *SQLiteAdapter) TableDefinitionQuery() string {
 			%s;`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType, // select
+		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType,   // select
 		types.SQLColumnLabelColumnLength, types.SQLColumnLabelPrimaryKey, // select
-		types.SQLDictionaryTableName,    // from
-		types.SQLColumnLabelTableName,   // where
+		types.SQLDictionaryTableName,                                     // from
+		types.SQLColumnLabelTableName,                                    // where
 		types.SQLColumnLabelColumnOrder) // order by
 
 }
@@ -217,20 +217,23 @@ func (adapter *SQLiteAdapter) SelectLogQuery() string {
 
 	return fmt.Sprintf(query,
 		types.SQLColumnLabelTableName, types.SQLColumnLabelEventName, // select
-		types.SQLLogTableName,      // from
+		types.SQLLogTableName,                                        // from
 		types.SQLColumnLabelHeight) // where
 }
 
 // InsertLogQuery returns a query to insert a row in log table
 func (adapter *SQLiteAdapter) InsertLogQuery() string {
 	query := `
-		INSERT INTO %s (%s,%s,%s,%s,%s,%s)
-		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5);`
+		INSERT INTO %s (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+		VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5, $6 ,$7, $8, $9);`
 
 	return fmt.Sprintf(query,
-		types.SQLLogTableName,                                                                      // insert
-		types.SQLColumnLabelTimeStamp, types.SQLColumnLabelRowCount, types.SQLColumnLabelTableName, // fields
-		types.SQLColumnLabelEventName, types.SQLColumnLabelEventFilter, types.SQLColumnLabelHeight) // fields
+		types.SQLLogTableName, // insert
+		//fields
+		types.SQLColumnLabelTimeStamp, types.SQLColumnLabelTableName, types.SQLColumnLabelEventName, types.SQLColumnLabelEventFilter,
+		types.SQLColumnLabelHeight, types.SQLColumnLabelTxHash, types.SQLColumnLabelAction, types.SQLColumnLabelDataRow,
+		types.SQLColumnLabelSqlStmt, types.SQLColumnLabelSqlValues)
+
 }
 
 // ErrorEquals verify if an error is of a given SQL type
@@ -258,15 +261,15 @@ func (adapter *SQLiteAdapter) ErrorEquals(err error, sqlErrorType types.SQLError
 	return false
 }
 
-func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error) {
+func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable, row types.EventDataRow) (string, string, interface{},[]interface{}, error) {
 
 	pointers := make([]interface{}, 0)
-	null := sql.NullString{Valid: false}
 	columns := ""
 	insValues := ""
 	updValues := ""
 	pkColumns := ""
 	values := ""
+	var txHash interface{}=nil
 
 	i := 0
 
@@ -287,6 +290,12 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable, row types.EventD
 
 		//find data for column
 		if value, ok := row.RowData[tableColumn.Name]; ok {
+			//load hash value
+			if tableColumn.Name==types.SQLColumnLabelTxHash{
+				txHash=value
+			}
+
+
 			// column found (not null)
 			// load values
 			pointers = append(pointers, &value)
@@ -303,10 +312,10 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable, row types.EventD
 			}
 		} else if tableColumn.Primary {
 			// column NOT found (is null) and is PK
-			return "", "", nil, fmt.Errorf("error null primary key for column %s", secureColumn)
+			return "", "", nil, nil, fmt.Errorf("error null primary key for column %s", secureColumn)
 		} else {
 			// column NOT found (is null) and is NOT PK
-			pointers = append(pointers, &null)
+			pointers = append(pointers, nil)
 			values += "null"
 		}
 
@@ -331,7 +340,7 @@ func (adapter *SQLiteAdapter) UpsertQuery(table types.SQLTable, row types.EventD
 	}
 	query += ";"
 
-	return query, values, pointers, nil
+	return query, values,txHash ,pointers, nil
 }
 
 func (adapter *SQLiteAdapter) DeleteQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error) {
@@ -379,4 +388,19 @@ func (adapter *SQLiteAdapter) DeleteQuery(table types.SQLTable, row types.EventD
 	query := fmt.Sprintf("DELETE FROM %s WHERE %s;", table.Name, columns)
 
 	return query, values, pointers, nil
+}
+
+func (adapter *SQLiteAdapter) RestoreDBQuery() string {
+
+	query := fmt.Sprintf("SELECT %s, %s, %s, %s FROM %s ",
+		types.SQLColumnLabelTableName, types.SQLColumnLabelAction, types.SQLColumnLabelSqlStmt, types.SQLColumnLabelSqlValues,
+		types.SQLLogTableName)
+
+	query += " WHERE strftime('%Y-%m-%d %H:%M:%S',"
+
+	query += fmt.Sprintf("%s)<=$1 ORDER BY %s;",
+		types.SQLColumnLabelTimeStamp, types.SQLColumnLabelId)
+
+	return query
+
 }
