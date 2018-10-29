@@ -83,7 +83,7 @@ func TestConsumer(t *testing.T) {
 	eventData, err := db.GetBlock(blockID)
 	require.NoError(t, err)
 	require.Equal(t, "2", eventData.Block)
-	require.Equal(t, 4, len(eventData.Tables))
+	require.Equal(t, 3, len(eventData.Tables))
 
 	tblData := eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
@@ -94,7 +94,7 @@ func TestConsumer(t *testing.T) {
 	eventData, err = db.GetBlock(blockID)
 	require.NoError(t, err)
 	require.Equal(t, "5", eventData.Block)
-	require.Equal(t, 4, len(eventData.Tables))
+	require.Equal(t, 3, len(eventData.Tables))
 
 	tblData = eventData.Tables[strings.ToLower(eventName)]
 	require.Equal(t, 1, len(tblData))
@@ -110,4 +110,10 @@ func TestConsumer(t *testing.T) {
 		require.Equal(t, 1, len(tblData))
 		require.Equal(t, "E7D6153490DF530A2083466BDED7A8F0D8212E39", tblData[0].RowData["_txhash"].(string))
 	}
+
+
+	//Restore
+	ti:=time.Now().Local().AddDate(10, 0, 0)
+	err=db.RestoreDB(ti,"RESTORED")
+	require.NoError(t, err)
 }

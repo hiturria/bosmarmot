@@ -478,7 +478,8 @@ func safe(parameter string) string {
 	return replacer.Replace(parameter)
 }
 
-//getJSON returns marshaled json from JSON column
+
+//getJSON returns marshaled json from JSON single column
 func (db *SQLDB) getJSON(JSON interface{}) ([]byte,error){
 	if JSON != nil{
 		return json.Marshal(JSON)
@@ -486,7 +487,7 @@ func (db *SQLDB) getJSON(JSON interface{}) ([]byte,error){
 	return 	json.Marshal("")
 }
 
-//getJSONFromValues returns marshaled json from values column
+//getJSONFromValues returns marshaled json from query values
 func (db *SQLDB) getJSONFromValues(values []interface{}) ([]byte,error){
 	if values != nil{
 		return json.Marshal(values)
@@ -494,7 +495,7 @@ func (db *SQLDB) getJSONFromValues(values []interface{}) ([]byte,error){
 	return 	json.Marshal("")
 }
 
-//getValuesFromJSON returns unmarshaled json from JSON column
+//getValuesFromJSON returns query values from unmarshaled JSON column
 func (db *SQLDB) getValuesFromJSON(JSON string) ([]interface{},error) {
 	pointers := make([]interface{}, 0)
 	bytes:=[]byte(JSON)

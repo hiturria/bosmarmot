@@ -73,6 +73,7 @@ func TestSetBlock(t *testing.T) {
 		err = db.SetBlock(str, dat)
 		require.NoError(t, err)
 
+
 		//restore
 		ti:=time.Now().Local().AddDate(10, 0, 0)
 		err=db.RestoreDB(ti,"RESTORED")
@@ -92,22 +93,24 @@ func TestSetBlock(t *testing.T) {
 		err := db.SetBlock(str, dat)
 		require.NoError(t, err)
 
+
 		// read
 		_, err = db.GetLastBlockID()
 		require.NoError(t, err)
-
 		_, err = db.GetBlock(dat.Block)
 		require.NoError(t, err)
+
 
 		// alter
 		str, dat = getAlterBlock()
 		err = db.SetBlock(str, dat)
 		require.NoError(t, err)
 
+
 		//restore
-		//ti:=time.Now().Local().AddDate(10, 0, 0)
-		//err=db.RestoreDB(ti,"RESTORED")
-		//require.NoError(t, err)
+		ti:=time.Now().Local().AddDate(10, 0, 0)
+		err=db.RestoreDB(ti,"RESTORED")
+		require.NoError(t, err)
 
 	})
 

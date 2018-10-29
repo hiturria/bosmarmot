@@ -392,7 +392,7 @@ func (adapter *SQLiteAdapter) DeleteQuery(table types.SQLTable, row types.EventD
 
 func (adapter *SQLiteAdapter) RestoreDBQuery() string {
 
-	query := fmt.Sprintf("SELECT %s, %s, %s, %s FROM %s ",
+	query := fmt.Sprintf("SELECT %s, %s, %s, %s FROM %s",
 		types.SQLColumnLabelTableName, types.SQLColumnLabelAction, types.SQLColumnLabelSqlStmt, types.SQLColumnLabelSqlValues,
 		types.SQLLogTableName)
 

@@ -27,13 +27,16 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 		Log:    log,
 	}
 
-	url := dbURL
+	var url string
 
 	switch dbAdapter {
 	case types.PostgresDB:
 		db.DBAdapter = adapters.NewPostgresAdapter(safe(schema), log)
+		url = dbURL
 	case types.SQLiteDB:
 		db.DBAdapter = adapters.NewSQLiteAdapter(log)
+		//THIS PARAMETER IS NECESARY IN PREVENTING DATABASE LOCK
+		url = dbURL+"?_journal_mode=WAL"
 	default:
 		return nil, errors.New("invalid database adapter")
 	}
@@ -355,11 +358,11 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 }
 
 // RestoreDB restores the DB to a moment in history
-func (db *SQLDB) RestoreDB(time time.Time, suffix string) error {
+func (db *SQLDB) RestoreDB(time time.Time, prefix string) error {
 	var pointers []interface{}
 
-	if suffix == "" {
-		return fmt.Errorf("error suffix mus not be empty")
+	if prefix == "" {
+		return fmt.Errorf("error prefix mus not be empty")
 	}
 
 	//Get Restore DB query
@@ -369,6 +372,7 @@ func (db *SQLDB) RestoreDB(time time.Time, suffix string) error {
 	db.Log.Info("msg", "RESTORING DB..................................")
 
 	//Open rows
+	db.Log.Info("msg", "open log","query",query)
 	rows, err := db.DB.Query(query, strTime)
 	if err != nil {
 		db.Log.Info("msg", "error querying log", "err", err)
@@ -393,6 +397,7 @@ func (db *SQLDB) RestoreDB(time time.Time, suffix string) error {
 			return err
 		}
 
+		restoreTable:=fmt.Sprintf("%s_%s",prefix,tableName)
 		switch action {
 		case types.ActionUpsert, types.ActionDelete:
 			//UnMarshal JSON
@@ -402,7 +407,7 @@ func (db *SQLDB) RestoreDB(time time.Time, suffix string) error {
 			}
       
 			//Prepare Upsert/delete
-			query = strings.Replace(sqlSmt, tableName, tableName + "_" + suffix, -1)
+			query = strings.Replace(sqlSmt, tableName,restoreTable, -1)
 			//Execute SQL
 			db.Log.Info("msg", "SQL COMMAND", "sql", query)
 			if _, err = db.DB.Exec(query,pointers...); err != nil {
@@ -412,7 +417,7 @@ func (db *SQLDB) RestoreDB(time time.Time, suffix string) error {
       
 		case types.ActionAlterTable, types.ActionCreateTable:
 			//Prepare Alter/Create Table
-			query = strings.Replace(sqlSmt, tableName, tableName + "_" + suffix, -1)
+			query = strings.Replace(sqlSmt, tableName, restoreTable, -1)
 			//Execute SQL
 			db.Log.Info("msg", "SQL COMMAND", "sql", query)
 			if _, err = db.DB.Exec(query); err != nil {
