@@ -70,7 +70,7 @@ func destroySchema(db *sqldb.SQLDB, dbSchema string) error {
 	db.Log.Info("msg", "Drop schema", "query", query)
 
 	if _, err := db.DB.Exec(query); err != nil {
-		db.Log.Debug("msg", "Error dropping schema", "err", err)
+		db.Log.Info("msg", "Error dropping schema", "err", err)
 		return err
 	}
 

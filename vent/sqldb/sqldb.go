@@ -131,8 +131,8 @@ func (db *SQLDB) SynchronizeDB(eventTables types.EventTables) error {
 
 // SetBlock inserts or updates multiple rows and stores log info in SQL tables
 func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventData) error {
-	db.Log.Info("msg", "Sinchronize Block..........")
-
+  db.Log.Info("msg", "Synchronize Block..........")
+  
 	//Declarations
 	var logStmt *sql.Stmt
 	var tx *sql.Tx
@@ -161,8 +161,9 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 loop:
-// for each table in the block
+  // for each table in the block
 	for eventName, table := range eventTables {
+    
 		safeTable = safe(table.Name)
 		dataRows := eventData.Tables[table.Name]
 
@@ -171,7 +172,6 @@ loop:
 
 			switch row.Action {
 			case types.ActionUpsert:
-
 				//Prepare Upsert
 				if query, values, txHash, pointers, errQuery = db.DBAdapter.UpsertQuery(table, row); errQuery != nil {
 					db.Log.Info("msg", "Error building upsert query", "err", errQuery, "value", fmt.Sprintf("%v %v", table, row))
@@ -179,21 +179,17 @@ loop:
 				}
 
 			case types.ActionDelete:
-
 				//Prepare Delete
 				txHash=nil
 				if query, values, pointers, errQuery = db.DBAdapter.DeleteQuery(table, row); errQuery != nil {
 					db.Log.Info("msg", "Error building delete query", "err", errQuery, "value", fmt.Sprintf("%v %v", table, row))
 					break loop // exits from all loops -> continue in close log stmt
 				}
-
 			default:
-
 				//Invalid Action
 				db.Log.Info("msg", "invalid action", "value", row.Action)
 				err = fmt.Errorf("invalid row action %s", row.Action)
 				break loop // exits from all loops -> continue in close log stmt
-
 			}
 
 			query = clean(query)
@@ -271,7 +267,8 @@ loop:
 	}
 
 	db.Log.Info("msg", "COMMIT")
-	if err := tx.Commit(); err != nil {
+
+  if err := tx.Commit(); err != nil {
 		db.Log.Info("msg", "Error on commit", "err", err)
 		return err
 	}
@@ -345,7 +342,6 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 					row[col] = containers[i].String
 				}
 			}
-
 			dataRows = append(dataRows, types.EventDataRow{Action: types.ActionRead, RowData: row})
 		}
 
@@ -353,14 +349,12 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 			db.Log.Info("msg", "Error during rows iteration", "err", err)
 			return data, err
 		}
-
-		data.Tables[table.Name] = dataRows
+		data.Tables[table.Name] = dataRows    
 	}
-
 	return data, nil
 }
 
-// RestoreDB returns the DB to a moment in history
+// RestoreDB restores the DB to a moment in history
 func (db *SQLDB) RestoreDB(time time.Time, suffix string) error {
 	var pointers []interface{}
 
@@ -370,13 +364,12 @@ func (db *SQLDB) RestoreDB(time time.Time, suffix string) error {
 
 	//Get Restore DB query
 	query := db.DBAdapter.RestoreDBQuery()
-	strTime:=time.Format("2006-01-02 15:04:05")
+	strTime := time.Format("2006-01-02 15:04:05")
 
 	db.Log.Info("msg", "RESTORING DB..................................")
 
-
 	//Open rows
-	rows, err := db.DB.Query(query,strTime)
+	rows, err := db.DB.Query(query, strTime)
 	if err != nil {
 		db.Log.Info("msg", "error querying log", "err", err)
 		return err
@@ -407,33 +400,30 @@ func (db *SQLDB) RestoreDB(time time.Time, suffix string) error {
 				db.Log.Info("msg", "error unmarshaling json", "err", err, "value", sqlValues)
 				return err
 			}
-
+      
 			//Prepare Upsert/delete
-			query=strings.Replace(sqlSmt,tableName,tableName+"_"+suffix,-1)
+			query = strings.Replace(sqlSmt, tableName, tableName + "_" + suffix, -1)
 			//Execute SQL
-			db.Log.Info("msg", "SQL COMMAND","sql",query)
+			db.Log.Info("msg", "SQL COMMAND", "sql", query)
 			if _, err = db.DB.Exec(query,pointers...); err != nil {
 				db.Log.Info("msg", "Error executing upsert/delete ", "err", err, "value", sqlSmt,"data",sqlValues)
 				return err
 			}
-
+      
 		case types.ActionAlterTable, types.ActionCreateTable:
 			//Prepare Alter/Create Table
-			query=strings.Replace(sqlSmt,tableName,tableName+"_"+suffix,-1)
+			query = strings.Replace(sqlSmt, tableName, tableName + "_" + suffix, -1)
 			//Execute SQL
-			db.Log.Info("msg", "SQL COMMAND","sql",query)
+			db.Log.Info("msg", "SQL COMMAND", "sql", query)
 			if _, err = db.DB.Exec(query); err != nil {
 				db.Log.Info("msg", "Error executing alter/create table command ", "err", err, "value", sqlSmt)
 				return err
 			}
-
 		default:
 			//Invalid Action
 			db.Log.Info("msg", "invalid action", "value", action)
 			return fmt.Errorf("invalid row action %s", action)
-
 		}
 	}
-
 	return nil
 }

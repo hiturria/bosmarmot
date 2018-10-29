@@ -68,7 +68,6 @@ const (
 	SQLColumnLabelEventType   = "_eventtype"
 	SQLColumnLabelBlockHeader = "_blockheader"
 	SQLColumnLabelTxType      = "_txtype"
-	SQLColumnLabelTxExec      = "_txexecutions"
 	SQLColumnLabelEnvelope    = "_envelope"
 	SQLColumnLabelEvents      = "_events"
 	SQLColumnLabelResult      = "_result"

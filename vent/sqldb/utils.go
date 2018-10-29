@@ -294,7 +294,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
 					db.Log.Info("msg", "Error altering table", "err", err)
 					return err
 				}
-			} else {
+			} else {        
 				//store dictionary
 				db.Log.Info("msg", "STORE DICTIONARY", "query", clean(dictionary))
 				_, err = db.DB.Exec(dictionary)
@@ -303,9 +303,8 @@ func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
 					return err
 				}
 
-				//insert log (if not start database)
+				//insert log (if action is not database initialization)
 				if eventName != string(types.ActionInitialize) {
-
 					// Marshal the table into a JSON string.
 					var jsonData []byte
 					jsonData, err = db.getJSON(newColumn)
@@ -313,7 +312,6 @@ func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
 						db.Log.Info("msg", "error marshaling column", "err", err, "value", fmt.Sprintf("%v", newColumn))
 						return err
 					}
-
 					//insert log
 					_, err = db.DB.Exec(logQuery, newTable.Name, eventName, newTable.Filter, nil, nil, types.ActionAlterTable, jsonData, query,sqlValues)
 					if err != nil {
@@ -403,8 +401,8 @@ func (db *SQLDB) createTable(table types.SQLTable, eventName string) error {
 		db.Log.Info("msg", "Error storing  dictionary", "err", err)
 		return err
 	}
-
-	//insert log (if not start database)
+  
+	//insert log (if action is not database initialization)
 	if eventName != string(types.ActionInitialize) {
 
 		// Marshal the table into a JSON string.
@@ -414,9 +412,7 @@ func (db *SQLDB) createTable(table types.SQLTable, eventName string) error {
 			db.Log.Info("msg", "error marshaling table", "err", err, "value", fmt.Sprintf("%v", table))
 			return err
 		}
-
 		sqlValues,_:= db.getJSON(nil)
-
 
 		//insert log
 		_, err = db.DB.Exec(logQuery, table.Name, eventName, table.Filter, nil, nil, types.ActionCreateTable, jsonData, query,sqlValues)
@@ -482,23 +478,23 @@ func safe(parameter string) string {
 	return replacer.Replace(parameter)
 }
 
-//getJSON returns marshaled JSON
+//getJSON returns marshaled json from JSON column
 func (db *SQLDB) getJSON(JSON interface{}) ([]byte,error){
-	if JSON!=nil{
+	if JSON != nil{
 		return json.Marshal(JSON)
 	}
 	return 	json.Marshal("")
 }
 
-//getJSON returns marshaled JSON
+//getJSONFromValues returns marshaled json from values column
 func (db *SQLDB) getJSONFromValues(values []interface{}) ([]byte,error){
-	if values!=nil{
+	if values != nil{
 		return json.Marshal(values)
 	}
 	return 	json.Marshal("")
 }
 
-//getValuesFromJSON returns un marshaled JSON
+//getValuesFromJSON returns unmarshaled json from JSON column
 func (db *SQLDB) getValuesFromJSON(JSON string) ([]interface{},error) {
 	pointers := make([]interface{}, 0)
 	bytes:=[]byte(JSON)

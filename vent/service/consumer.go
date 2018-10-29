@@ -2,18 +2,14 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"math/big"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/hyperledger/burrow/crypto"
 	"github.com/hyperledger/burrow/execution/evm/abi"
-	"github.com/hyperledger/burrow/execution/exec"
 	"github.com/hyperledger/burrow/rpc/rpcevents"
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
@@ -85,9 +81,6 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 	}
 	defer c.GRPCConnection.Close()
 
-	// a replacer to get DeleteFilter parameters
-	replacer := strings.NewReplacer(" ", "", "'", "")
-
 	// doneCh is used for sending a "done" signal from each goroutine to the main thread
 	// eventCh is used for sending received events to the main thread to be stored in the db
 	doneCh := make(chan error)
@@ -150,11 +143,11 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 			resp, err := blocks.Recv()
 			if err != nil {
 				if err == io.EOF {
-					c.Log.Info("msg", "EOF stream received...")
+					c.Log.Debug("msg", "EOF stream received...")
 					continue
 				} else {
 					if c.Closing {
-						c.Log.Info("msg", "GRPC connection closed")
+						c.Log.Debug("msg", "GRPC connection closed")
 						break
 					} else {
 						doneCh <- errors.Wrapf(err, "Error receiving blocks")
@@ -186,6 +179,8 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 			// get transactions for a given block
 			for _, txe := range resp.TxExecutions {
 
+				c.Log.Debug("msg", "Getting transaction", "TxHash", txe.TxHash, "num_events", len(txe.Events))
+
 				if c.Config.DBBlockTx {
 					txRawData, err := buildTxData(tables, txe)
 					if err != nil {
@@ -200,10 +195,6 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 
 					taggedEvent := event.Tagged()
 
-					// get header & log data for the given event
-					eventHeader := event.GetHeader()
-					eventLog := event.GetLog()
-
 					// see which spec filter matches with the one in event data
 					for _, spec := range eventSpec {
 						qry, err := spec.Query()
@@ -216,54 +207,16 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 						// there's a matching filter, add data to the rows
 						if qry.Matches(taggedEvent) {
 
-							// a fresh new row to store column/value data
-							row := make(map[string]interface{})
+							c.Log.Info("msg", fmt.Sprintf("Matched event header: %v", event.Header), "filter", spec.Filter)
 
-							c.Log.Info("msg", fmt.Sprintf("Event Header: %v", eventHeader), "filter", spec.Filter)
-
-							// decode event data using the provided abi specification
-							eventData, err := decodeEvent(eventHeader, eventLog, abiSpec, c.Log)
+							// unpack, decode & build event data
+							eventData, err := buildEventData(spec, parser, event, abiSpec, c.Log)
 							if err != nil {
-								doneCh <- errors.Wrapf(err, "Error decoding event (filter: %s)", spec.Filter)
-								return
+								doneCh <- errors.Wrapf(err, "Error building event data")
 							}
 
-							rowAction := types.ActionUpsert
-
-							var deleteFilter []string
-
-							// get delete filter from spec
-							if spec.DeleteFilter != "" {
-								deleteFilter = strings.Split(replacer.Replace(spec.DeleteFilter), "=")
-							}
-							deleteFilterLength := len(deleteFilter)
-
-							// for each data element, maps to SQL columnName and gets its value
-							// if there is no matching column for the item, it doesn't need to be stored in db
-							for k, v := range eventData {
-								if deleteFilterLength > 0 {
-									if k == deleteFilter[0] {
-										if bytes, ok := v.(*[]byte); ok {
-											str := strings.Trim(string(*bytes), "\x00")
-											if str == deleteFilter[1] {
-												rowAction = types.ActionDelete
-											}
-										}
-									}
-								}
-								if column, err := parser.GetColumn(spec.TableName, k); err == nil {
-									if column.BytesToString {
-										if bytes, ok := v.(*[]byte); ok {
-											str := strings.Trim(string(*bytes), "\x00")
-											row[column.Name] = interface{}(&str)
-											continue
-										}
-									}
-									row[column.Name] = v
-								}
-							}
 							// set row in structure
-							blockData.AddRow(strings.ToLower(spec.TableName), types.EventDataRow{Action: rowAction, RowData: row})
+							blockData.AddRow(strings.ToLower(spec.TableName), eventData)
 						}
 					}
 				}
@@ -276,7 +229,7 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 				// gets block data to upsert
 				blk := blockData.GetBlockData()
 
-				c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL event tables %v", blk), "block", fromBlock)
+				c.Log.Info("msg", fmt.Sprintf("Upserting rows in SQL tables %v", blk), "block", fromBlock)
 
 				eventCh <- blk
 			}
@@ -347,130 +300,4 @@ func (c *Consumer) Shutdown() {
 	c.Log.Info("msg", "Shutting down vent consumer...")
 	c.Closing = true
 	c.GRPCConnection.Close()
-}
-
-// decodeEvent unpacks & decodes event data
-func decodeEvent(header *exec.Header, log *exec.LogEvent, abiSpec *abi.AbiSpec, l *logger.Logger) (map[string]interface{}, error) {
-	// to prepare decoded data and map to event item name
-	data := make(map[string]interface{})
-
-	var eventID abi.EventID
-	var evAbi abi.EventSpec
-	copy(eventID[:], log.Topics[0].Bytes())
-
-	evAbi, ok := abiSpec.EventsById[eventID]
-	if !ok {
-		return nil, fmt.Errorf("Abi spec not found for event %x", eventID)
-	}
-
-	// decode header to get context data for each event
-	data[types.EventNameLabel] = evAbi.Name
-	data[types.BlockHeightLabel] = fmt.Sprintf("%v", header.GetHeight())
-	data[types.EventTypeLabel] = header.GetEventType().String()
-	data[types.TxTxHashLabel] = header.TxHash.String()
-
-	// build expected interface type array to get log event values
-	unpackedData := abi.GetPackingTypes(evAbi.Inputs)
-
-	// unpack event data (topics & data part)
-	if err := abi.UnpackEvent(evAbi, log.Topics, log.Data, unpackedData...); err != nil {
-		return nil, errors.Wrap(err, "Could not unpack event data")
-	}
-
-	l.Debug("msg", fmt.Sprintf("Unpacked event data %v", unpackedData), "eventName", evAbi.Name)
-
-	// for each decoded item value, stores it in given item name
-	for i, input := range evAbi.Inputs {
-		switch v := unpackedData[i].(type) {
-		case *crypto.Address:
-			data[input.Name] = v.String()
-		case *big.Int:
-			data[input.Name] = v.String()
-		default:
-			data[input.Name] = v
-		}
-
-		l.Debug("msg", fmt.Sprintf("Unpacked data items: data[%v] = %v", input.Name, data[input.Name]), "eventName", evAbi.Name)
-	}
-
-	return data, nil
-}
-
-// buildBlkData builds block data from block stream
-func buildBlkData(tbls types.EventTables, block *exec.BlockExecution) (types.EventDataRow, error) {
-
-	// a fresh new row to store column/value data
-	row := make(map[string]interface{})
-
-	// block raw data
-	if tbl, ok := tbls[types.SQLBlockTableName]; ok {
-
-		blockHeader, err := json.Marshal(block.BlockHeader)
-		if err != nil {
-			return types.EventDataRow{}, fmt.Errorf("Couldn't marshal BlockHeader in block %v", block)
-		}
-
-		txExec, err := json.Marshal(block.TxExecutions)
-		if err != nil {
-			return types.EventDataRow{}, fmt.Errorf("Couldn't marshal txExecutions in block %v", block)
-		}
-
-		row[tbl.Columns[types.BlockHeightLabel].Name] = fmt.Sprintf("%v", block.Height)
-		row[tbl.Columns[types.BlockHeaderLabel].Name] = string(blockHeader)
-		row[tbl.Columns[types.BlockTxExecLabel].Name] = string(txExec)
-	} else {
-		return types.EventDataRow{}, fmt.Errorf("table: %s not found in table structure %v", types.SQLBlockTableName, tbls)
-	}
-
-	return types.EventDataRow{Action: types.ActionUpsert, RowData: row}, nil
-}
-
-// buildTxData builds transaction data from tx stream
-func buildTxData(tbls types.EventTables, txe *exec.TxExecution) (types.EventDataRow, error) {
-
-	// a fresh new row to store column/value data
-	row := make(map[string]interface{})
-
-	// transaction raw data
-	if tbl, ok := tbls[types.SQLTxTableName]; ok {
-
-		envelope, err := json.Marshal(txe.Envelope)
-		if err != nil {
-			return types.EventDataRow{}, fmt.Errorf("Couldn't marshal envelope in tx %v", txe)
-		}
-
-		events, err := json.Marshal(txe.Events)
-		if err != nil {
-			return types.EventDataRow{}, fmt.Errorf("Couldn't marshal events in tx %v", txe)
-		}
-
-		result, err := json.Marshal(txe.Result)
-		if err != nil {
-			return types.EventDataRow{}, fmt.Errorf("Couldn't marshal result in tx %v", txe)
-		}
-
-		receipt, err := json.Marshal(txe.Receipt)
-		if err != nil {
-			return types.EventDataRow{}, fmt.Errorf("Couldn't marshal receipt in tx %v", txe)
-		}
-
-		exception, err := json.Marshal(txe.Exception)
-		if err != nil {
-			return types.EventDataRow{}, fmt.Errorf("Couldn't marshal exception in tx %v", txe)
-		}
-
-		row[tbl.Columns[types.BlockHeightLabel].Name] = fmt.Sprintf("%v", txe.Height)
-		row[tbl.Columns[types.TxTxHashLabel].Name] = txe.TxHash.String()
-		row[tbl.Columns[types.TxIndexLabel].Name] = txe.Index
-		row[tbl.Columns[types.TxTxTypeLabel].Name] = txe.TxType.String()
-		row[tbl.Columns[types.TxEnvelopeLabel].Name] = string(envelope)
-		row[tbl.Columns[types.TxEventsLabel].Name] = string(events)
-		row[tbl.Columns[types.TxResultLabel].Name] = string(result)
-		row[tbl.Columns[types.TxReceiptLabel].Name] = string(receipt)
-		row[tbl.Columns[types.TxExceptionLabel].Name] = string(exception)
-	} else {
-		return types.EventDataRow{}, fmt.Errorf("Table: %s not found in table structure %v", types.SQLTxTableName, tbls)
-	}
-
-	return types.EventDataRow{Action: types.ActionUpsert, RowData: row}, nil
 }

@@ -72,6 +72,6 @@ func healthHandler(log *logger.Logger, consumer *Consumer) func(resp http.Respon
 			resp.WriteHeader(http.StatusOK)
 		}
 
-		log.Debug("msg", "GET /health", "err", err)
+		log.Info("msg", "GET /health", "err", err)
 	}
 }

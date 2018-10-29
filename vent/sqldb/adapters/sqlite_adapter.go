@@ -38,7 +38,7 @@ func NewSQLiteAdapter(log *logger.Logger) *SQLiteAdapter {
 func (adapter *SQLiteAdapter) Open(dbURL string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite3", dbURL)
 	if err != nil {
-		adapter.Log.Debug("msg", "Error creating database connection", "err", err)
+		adapter.Log.Info("msg", "Error creating database connection", "err", err)
 		return nil, err
 	}
 

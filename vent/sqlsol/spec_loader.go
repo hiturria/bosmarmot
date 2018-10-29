@@ -66,13 +66,6 @@ func getBlockTxTablesDefinition() types.EventTables {
 		Order:   2,
 	}
 
-	blockCol[types.BlockTxExecLabel] = types.SQLTableColumn{
-		Name:    types.SQLColumnLabelTxExec,
-		Type:    types.SQLColumnTypeJSON,
-		Primary: false,
-		Order:   3,
-	}
-
 	// transaction table
 	txCol[types.BlockHeightLabel] = types.SQLTableColumn{
 		Name:    types.SQLColumnLabelHeight,
