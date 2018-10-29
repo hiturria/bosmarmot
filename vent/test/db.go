@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"os"
+
 	"github.com/monax/bosmarmot/vent/config"
 	"github.com/monax/bosmarmot/vent/logger"
 	"github.com/monax/bosmarmot/vent/sqldb"
 	"github.com/monax/bosmarmot/vent/types"
-	"os"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz")

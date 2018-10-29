@@ -19,6 +19,7 @@ var pgDataTypes = map[types.SQLColumnType]string{
 	types.SQLColumnTypeTimeStamp: "TIMESTAMP",
 	types.SQLColumnTypeNumeric:   "NUMERIC",
 	types.SQLColumnTypeJSON:      "JSON",
+	types.SQLColumnTypeBigInt:    "BIGINT",
 }
 
 // PostgresAdapter implements DBAdapter for Postgres
@@ -194,10 +195,10 @@ func (adapter *PostgresAdapter) TableDefinitionQuery() string {
 			%s;`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType,   // select
+		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType, // select
 		types.SQLColumnLabelColumnLength, types.SQLColumnLabelPrimaryKey, // select
-		adapter.Schema, types.SQLDictionaryTableName,                     // from
-		types.SQLColumnLabelTableName,                                    // where
+		adapter.Schema, types.SQLDictionaryTableName, // from
+		types.SQLColumnLabelTableName,   // where
 		types.SQLColumnLabelColumnOrder) // order by
 
 }
@@ -242,7 +243,7 @@ func (adapter *PostgresAdapter) SelectLogQuery() string {
 
 	return fmt.Sprintf(query,
 		types.SQLColumnLabelTableName, types.SQLColumnLabelEventName, // select
-		adapter.Schema, types.SQLLogTableName,                        // from
+		adapter.Schema, types.SQLLogTableName, // from
 		types.SQLColumnLabelHeight) // where
 }
 
@@ -284,7 +285,7 @@ func (adapter *PostgresAdapter) ErrorEquals(err error, sqlErrorType types.SQLErr
 	return false
 }
 
-func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.EventDataRow) (string, string, interface{}, []interface{}, error) {
+func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.EventDataRow) (types.UpsertDeleteQuery, interface{}, error) {
 
 	pointers := make([]interface{}, 0)
 
@@ -292,7 +293,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 	insValues := ""
 	updValues := ""
 	values := ""
-	var txHash interface{}=nil
+	var txHash interface{} = nil
 
 	i := 0
 
@@ -301,7 +302,6 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 		secureColumn := adapter.SecureColumnName(tableColumn.Name)
 
 		i++
-
 
 		// INSERT INTO TABLE (*columns).........
 		if columns != "" {
@@ -315,8 +315,8 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 		//find data for column
 		if value, ok := row.RowData[tableColumn.Name]; ok {
 			//load hash value
-			if tableColumn.Name==types.SQLColumnLabelTxHash{
-				txHash=value
+			if tableColumn.Name == types.SQLColumnLabelTxHash {
+				txHash = value
 			}
 
 			// column found (not null)
@@ -335,7 +335,7 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 			}
 		} else if tableColumn.Primary {
 			// column NOT found (is null) and is PK
-			return "", "", nil, nil, fmt.Errorf("error null primary key for column %s", secureColumn)
+			return types.UpsertDeleteQuery{}, nil, fmt.Errorf("error null primary key for column %s", secureColumn)
 		} else {
 			// column NOT found (is null) and is NOT PK
 			//pointers = append(pointers, &null)
@@ -353,10 +353,10 @@ func (adapter *PostgresAdapter) UpsertQuery(table types.SQLTable, row types.Even
 	}
 	query += ";"
 
-	return query, values, txHash, pointers, nil
+	return types.UpsertDeleteQuery{Query: query, Values: values, Pointers: pointers}, txHash, nil
 }
 
-func (adapter *PostgresAdapter) DeleteQuery(table types.SQLTable, row types.EventDataRow) (string, string, []interface{}, error) {
+func (adapter *PostgresAdapter) DeleteQuery(table types.SQLTable, row types.EventDataRow) (types.UpsertDeleteQuery, error) {
 
 	pointers := make([]interface{}, 0)
 	columns := ""
@@ -389,26 +389,26 @@ func (adapter *PostgresAdapter) DeleteQuery(table types.SQLTable, row types.Even
 
 			} else {
 				// column NOT found (is null) and is PK
-				return "", "", nil, fmt.Errorf("error null primary key for column %s", secureColumn)
+				return types.UpsertDeleteQuery{}, fmt.Errorf("error null primary key for column %s", secureColumn)
 			}
 		}
 	}
 
 	if columns == "" {
-		return "", "", nil, fmt.Errorf("error primary key not found for deletion")
+		return types.UpsertDeleteQuery{}, fmt.Errorf("error primary key not found for deletion")
 	}
 
 	query := fmt.Sprintf("DELETE FROM %s.%s WHERE %s;", adapter.Schema, table.Name, columns)
 
-	return query, values, pointers, nil
+	return types.UpsertDeleteQuery{Query: query, Values: values, Pointers: pointers}, nil
 }
 
 func (adapter *PostgresAdapter) RestoreDBQuery() string {
 	return fmt.Sprintf(`SELECT %s, %s, %s, %s FROM %s.%s 
 								WHERE to_char(%s,'YYYY-MM-DD HH24:MI:SS')<=$1 
 								ORDER BY %s;`,
-			types.SQLColumnLabelTableName,types.SQLColumnLabelAction,types.SQLColumnLabelSqlStmt,types.SQLColumnLabelSqlValues,
-			adapter.Schema,types.SQLLogTableName,
-			types.SQLColumnLabelTimeStamp,
-			types.SQLColumnLabelId)
+		types.SQLColumnLabelTableName, types.SQLColumnLabelAction, types.SQLColumnLabelSqlStmt, types.SQLColumnLabelSqlValues,
+		adapter.Schema, types.SQLLogTableName,
+		types.SQLColumnLabelTimeStamp,
+		types.SQLColumnLabelId)
 }

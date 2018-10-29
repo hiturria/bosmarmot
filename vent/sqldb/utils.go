@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/monax/bosmarmot/vent/types"
 	"encoding/json"
+
+	"github.com/monax/bosmarmot/vent/types"
 )
 
 // findTable checks if a table exists in the default schema
 func (db *SQLDB) findTable(tableName string) (bool, error) {
+
 	found := 0
 	safeTable := safe(tableName)
 	query := clean(db.DBAdapter.FindTableQuery())
@@ -31,6 +33,7 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 
 // getSysTablesDefinition returns log & dictionary structures
 func (db *SQLDB) getSysTablesDefinition() types.EventTables {
+
 	tables := make(types.EventTables)
 	dicCol := make(map[string]types.SQLTableColumn)
 	logCol := make(map[string]types.SQLTableColumn)
@@ -187,6 +190,7 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 
 // getTableDef returns the structure of a given SQL table
 func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
+
 	var table types.SQLTable
 
 	safeTable := safe(tableName)
@@ -252,6 +256,7 @@ func (db *SQLDB) getTableDef(tableName string) (types.SQLTable, error) {
 
 // alterTable alters the structure of a SQL table & add info to the dictionary
 func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
+
 	db.Log.Info("msg", "Altering table", "value", newTable.Name)
 
 	// prepare log query
@@ -264,7 +269,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
 		return err
 	}
 
-	sqlValues,_:= db.getJSON(nil)
+	sqlValues, _ := db.getJSON(nil)
 
 	// for each column in the new table structure
 	for _, newColumn := range newTable.Columns {
@@ -294,7 +299,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
 					db.Log.Info("msg", "Error altering table", "err", err)
 					return err
 				}
-			} else {        
+			} else {
 				//store dictionary
 				db.Log.Info("msg", "STORE DICTIONARY", "query", clean(dictionary))
 				_, err = db.DB.Exec(dictionary)
@@ -313,7 +318,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
 						return err
 					}
 					//insert log
-					_, err = db.DB.Exec(logQuery, newTable.Name, eventName, newTable.Filter, nil, nil, types.ActionAlterTable, jsonData, query,sqlValues)
+					_, err = db.DB.Exec(logQuery, newTable.Name, eventName, newTable.Filter, nil, nil, types.ActionAlterTable, jsonData, query, sqlValues)
 					if err != nil {
 						db.Log.Info("msg", "Error inserting log", "err", err)
 						return err
@@ -327,6 +332,7 @@ func (db *SQLDB) alterTable(newTable types.SQLTable, eventName string) error {
 
 // getSelectQuery builds a select query for a specific SQL table and a given block
 func (db *SQLDB) getSelectQuery(table types.SQLTable, height string) (string, error) {
+
 	fields := ""
 
 	for _, tableColumn := range table.Columns {
@@ -346,6 +352,7 @@ func (db *SQLDB) getSelectQuery(table types.SQLTable, height string) (string, er
 
 // createTable creates a new table
 func (db *SQLDB) createTable(table types.SQLTable, eventName string) error {
+
 	db.Log.Info("msg", "Creating Table", "value", table.Name)
 
 	// prepare log query
@@ -401,7 +408,7 @@ func (db *SQLDB) createTable(table types.SQLTable, eventName string) error {
 		db.Log.Info("msg", "Error storing  dictionary", "err", err)
 		return err
 	}
-  
+
 	//insert log (if action is not database initialization)
 	if eventName != string(types.ActionInitialize) {
 
@@ -412,10 +419,10 @@ func (db *SQLDB) createTable(table types.SQLTable, eventName string) error {
 			db.Log.Info("msg", "error marshaling table", "err", err, "value", fmt.Sprintf("%v", table))
 			return err
 		}
-		sqlValues,_:= db.getJSON(nil)
+		sqlValues, _ := db.getJSON(nil)
 
 		//insert log
-		_, err = db.DB.Exec(logQuery, table.Name, eventName, table.Filter, nil, nil, types.ActionCreateTable, jsonData, query,sqlValues)
+		_, err = db.DB.Exec(logQuery, table.Name, eventName, table.Filter, nil, nil, types.ActionCreateTable, jsonData, query, sqlValues)
 		if err != nil {
 			db.Log.Info("msg", "Error inserting log", "err", err)
 			return err
@@ -427,6 +434,7 @@ func (db *SQLDB) createTable(table types.SQLTable, eventName string) error {
 // getBlockTables return all SQL tables that have been involved
 // in a given batch transaction for a specific block
 func (db *SQLDB) getBlockTables(block string) (types.EventTables, error) {
+
 	tables := make(types.EventTables)
 
 	query := clean(db.DBAdapter.SelectLogQuery())
@@ -478,27 +486,26 @@ func safe(parameter string) string {
 	return replacer.Replace(parameter)
 }
 
-
 //getJSON returns marshaled json from JSON single column
-func (db *SQLDB) getJSON(JSON interface{}) ([]byte,error){
-	if JSON != nil{
+func (db *SQLDB) getJSON(JSON interface{}) ([]byte, error) {
+	if JSON != nil {
 		return json.Marshal(JSON)
 	}
-	return 	json.Marshal("")
+	return json.Marshal("")
 }
 
 //getJSONFromValues returns marshaled json from query values
-func (db *SQLDB) getJSONFromValues(values []interface{}) ([]byte,error){
-	if values != nil{
+func (db *SQLDB) getJSONFromValues(values []interface{}) ([]byte, error) {
+	if values != nil {
 		return json.Marshal(values)
 	}
-	return 	json.Marshal("")
+	return json.Marshal("")
 }
 
 //getValuesFromJSON returns query values from unmarshaled JSON column
-func (db *SQLDB) getValuesFromJSON(JSON string) ([]interface{},error) {
+func (db *SQLDB) getValuesFromJSON(JSON string) ([]interface{}, error) {
 	pointers := make([]interface{}, 0)
-	bytes:=[]byte(JSON)
-	err:=json.Unmarshal(bytes,&pointers)
-	return 	pointers,err
+	bytes := []byte(JSON)
+	err := json.Unmarshal(bytes, &pointers)
+	return pointers, err
 }

@@ -205,17 +205,25 @@ func getSQLType(evmSignature string, isArray bool, bytesToString bool) (types.SQ
 		// solidity string => sql text
 	case evmSignature == types.EventInputTypeString:
 		return types.SQLColumnTypeText, 0, nil
+		// solidity int or int256 => sql bigint
 		// solidity int <= 32 => sql int
 		// solidity int > 32 => sql numeric
 	case strings.HasPrefix(evmSignature, types.EventInputTypeInt):
+		if typeSize == 0 || typeSize == 256 {
+			return types.SQLColumnTypeBigInt, 0, nil
+		}
 		if typeSize <= 32 {
 			return types.SQLColumnTypeInt, 0, nil
 		} else {
 			return types.SQLColumnTypeNumeric, 0, nil
 		}
+		// solidity uint or uint256 => sql bigint
 		// solidity uint <= 16 => sql int
 		// solidity uint > 16 => sql numeric
 	case strings.HasPrefix(evmSignature, types.EventInputTypeUInt):
+		if typeSize == 0 || typeSize == 256 {
+			return types.SQLColumnTypeBigInt, 0, nil
+		}
 		if typeSize <= 16 {
 			return types.SQLColumnTypeInt, 0, nil
 		} else {

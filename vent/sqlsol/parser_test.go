@@ -89,9 +89,16 @@ func TestGetColumn(t *testing.T) {
 	t.Run("successfully gets the mapping column info for a given table & column name", func(t *testing.T) {
 		column, err := tableStruct.GetColumn("TEST_TABLE", "blocknum")
 		require.NoError(t, err)
-		require.Equal(t, strings.ToLower("block"), column.Name)
-		require.Equal(t, types.SQLColumnTypeNumeric, column.Type)
+		require.Equal(t, strings.ToLower("Block"), column.Name)
+		require.Equal(t, types.SQLColumnTypeBigInt, column.Type)
 		require.Equal(t, false, column.Primary)
+
+		column, err = tableStruct.GetColumn("TEST_TABLE", "instance")
+		require.NoError(t, err)
+		require.Equal(t, strings.ToLower("Instance"), column.Name)
+		require.Equal(t, types.SQLColumnTypeBigInt, column.Type)
+		require.Equal(t, false, column.Primary)
+
 	})
 
 	t.Run("unsuccessfully gets the mapping column info for a non existent table name", func(t *testing.T) {

@@ -28,7 +28,7 @@ func GoodJSONConfFile(t *testing.T) string {
 			"key"		: {"name" : "Index",    "type": "uint256", "primary" : true},
 			"blocknum"  : {"name" : "Block",    "type": "uint256", "primary" : false},
 			"somestr"	: {"name" : "String",   "type": "string", "primary" : false},
-			"instance" 	: {"name" : "Instance", "type": "uint256", "primary" : false}
+			"instance" 	: {"name" : "Instance", "type": "uint", "primary" : false}
 		}
 	}
 	]`
