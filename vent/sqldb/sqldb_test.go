@@ -3,13 +3,14 @@
 package sqldb_test
 
 import (
-	"testing"
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/monax/bosmarmot/vent/sqlsol"
 	"github.com/monax/bosmarmot/vent/test"
 	"github.com/monax/bosmarmot/vent/types"
 	"github.com/stretchr/testify/require"
-	"time"
 )
 
 func TestSynchronizeDB(t *testing.T) {
@@ -51,8 +52,6 @@ func TestSetBlock(t *testing.T) {
 		db, closeDB := test.NewTestDB(t, types.PostgresDB)
 		defer closeDB()
 
-
-
 		errp := db.Ping()
 		require.NoError(t, errp)
 
@@ -73,10 +72,9 @@ func TestSetBlock(t *testing.T) {
 		err = db.SetBlock(str, dat)
 		require.NoError(t, err)
 
-
 		//restore
-		ti:=time.Now().Local().AddDate(10, 0, 0)
-		err=db.RestoreDB(ti,"RESTORED")
+		ti := time.Now().Local().AddDate(10, 0, 0)
+		err = db.RestoreDB(ti, "RESTORED")
 		require.NoError(t, err)
 
 	})
@@ -93,23 +91,20 @@ func TestSetBlock(t *testing.T) {
 		err := db.SetBlock(str, dat)
 		require.NoError(t, err)
 
-
 		// read
 		_, err = db.GetLastBlockID()
 		require.NoError(t, err)
 		_, err = db.GetBlock(dat.Block)
 		require.NoError(t, err)
 
-
 		// alter
 		str, dat = getAlterBlock()
 		err = db.SetBlock(str, dat)
 		require.NoError(t, err)
 
-
 		//restore
-		ti:=time.Now().Local().AddDate(10, 0, 0)
-		err=db.RestoreDB(ti,"RESTORED")
+		ti := time.Now().Local().AddDate(10, 0, 0)
+		err = db.RestoreDB(ti, "RESTORED")
 		require.NoError(t, err)
 
 	})
@@ -164,9 +159,8 @@ func TestSetBlock(t *testing.T) {
 }
 
 func getBlock() (types.EventTables, types.EventData) {
-	longtext:="qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM"
-	longtext=fmt.Sprintf("%s %s %s %s %s",longtext,longtext,longtext,longtext,longtext)
-
+	longtext := "qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM"
+	longtext = fmt.Sprintf("%s %s %s %s %s", longtext, longtext, longtext, longtext, longtext)
 
 	//table 1
 	cols1 := make(map[string]types.SQLTableColumn)
@@ -213,11 +207,11 @@ func getBlock() (types.EventTables, types.EventData) {
 	dat.Tables = make(map[string]types.EventDataTable)
 
 	var rows1 []types.EventDataRow
-	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "1", "col1": "text11", "col2": "text12", "_height": "0123456789ABCDEF0", "col4": "14","colV":longtext,"colT":longtext}})
-	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "2", "col1": "text21", "col2": "text22", "_height": "0123456789ABCDEF0", "col4": "24","colV":longtext,"colT":longtext}})
-	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "3", "col1": "text31", "col2": "text32", "_height": "0123456789ABCDEF0", "col4": "34","colV":longtext,"colT":longtext}})
-	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "4", "col1": "text41", "col3": "text43", "_height": "0123456789ABCDEF0","colV":longtext,"colT":longtext}})
-	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "1", "col1": "upd", "col2": "upd", "_height": "0123456789ABCDEF0", "col4": "upd","colV":longtext,"colT":longtext}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "1", "col1": "text11", "col2": "text12", "_height": "0123456789ABCDEF0", "col4": "14", "colV": longtext, "colT": longtext}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "2", "col1": "text21", "col2": "text22", "_height": "0123456789ABCDEF0", "col4": "24", "colV": longtext, "colT": longtext}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "3", "col1": "text31", "col2": "text32", "_height": "0123456789ABCDEF0", "col4": "34", "colV": longtext, "colT": longtext}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "4", "col1": "text41", "col3": "text43", "_height": "0123456789ABCDEF0", "colV": longtext, "colT": longtext}})
+	rows1 = append(rows1, types.EventDataRow{Action: types.ActionUpsert, RowData: map[string]interface{}{"test_id": "1", "col1": "upd", "col2": "upd", "_height": "0123456789ABCDEF0", "col4": "upd", "colV": longtext, "colT": longtext}})
 	dat.Tables["test_table1"] = rows1
 
 	var rows2 []types.EventDataRow

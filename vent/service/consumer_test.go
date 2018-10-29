@@ -111,9 +111,8 @@ func TestConsumer(t *testing.T) {
 		require.Equal(t, "E7D6153490DF530A2083466BDED7A8F0D8212E39", tblData[0].RowData["_txhash"].(string))
 	}
 
-
 	//Restore
-	ti:=time.Now().Local().AddDate(10, 0, 0)
-	err=db.RestoreDB(ti,"RESTORED")
+	ti := time.Now().Local().AddDate(10, 0, 0)
+	err = db.RestoreDB(ti, "RESTORED")
 	require.NoError(t, err)
 }
