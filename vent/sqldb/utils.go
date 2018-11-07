@@ -31,12 +31,13 @@ func (db *SQLDB) findTable(tableName string) (bool, error) {
 	return true, nil
 }
 
-// getSysTablesDefinition returns log & dictionary structures
+// getSysTablesDefinition returns log, chain info & dictionary structures
 func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 
 	tables := make(types.EventTables)
 	dicCol := make(map[string]types.SQLTableColumn)
 	logCol := make(map[string]types.SQLTableColumn)
+	chainCol := make(map[string]types.SQLTableColumn)
 
 	// log table
 	logCol[types.SQLColumnLabelId] = types.SQLTableColumn{
@@ -174,10 +175,32 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 		Order:   6,
 	}
 
+	// chain info table
+	chainCol[types.SQLColumnLabelChainID] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelChainID,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
+		Primary: true,
+		Order:   1,
+	}
+
+	chainCol[types.SQLColumnLabelBurrowVer] = types.SQLTableColumn{
+		Name:    types.SQLColumnLabelBurrowVer,
+		Type:    types.SQLColumnTypeVarchar,
+		Length:  100,
+		Primary: false,
+		Order:   2,
+	}
+
 	// add tables
 	tables[types.SQLLogTableName] = types.SQLTable{
 		Name:    types.SQLLogTableName,
 		Columns: logCol,
+	}
+
+	tables[types.SQLChainInfoTableName] = types.SQLTable{
+		Name:    types.SQLChainInfoTableName,
+		Columns: chainCol,
 	}
 
 	tables[types.SQLDictionaryTableName] = types.SQLTable{

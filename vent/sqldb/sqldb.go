@@ -75,6 +75,14 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 		}
 	}
 
+	// IMPORTANT: DO NOT CHANGE TABLE CREATION ORDER (3)
+	if err = db.createTable(sysTables[types.SQLChainInfoTableName], string(types.ActionInitialize)); err != nil {
+		if !db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeDuplicatedTable) {
+			db.Log.Info("msg", "Error creating Chain Info table", "err", err)
+			return nil, err
+		}
+	}
+
 	return db, nil
 }
 

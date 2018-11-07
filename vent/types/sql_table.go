@@ -27,10 +27,13 @@ type UpsertDeleteQuery struct {
 }
 
 // SQL log & dictionary tables
-const SQLLogTableName = "_vent_log"
-const SQLDictionaryTableName = "_vent_dictionary"
-const SQLBlockTableName = "_vent_block"
-const SQLTxTableName = "_vent_tx"
+const (
+	SQLLogTableName        = "_vent_log"
+	SQLDictionaryTableName = "_vent_dictionary"
+	SQLBlockTableName      = "_vent_block"
+	SQLTxTableName         = "_vent_tx"
+	SQLChainInfoTableName  = "_vent_chain"
+)
 
 // fixed sql column names in tables
 const (
@@ -53,6 +56,10 @@ const (
 	SQLColumnLabelColumnLength = "_columnlength"
 	SQLColumnLabelPrimaryKey   = "_primarykey"
 	SQLColumnLabelColumnOrder  = "_columnorder"
+
+	// chain info
+	SQLColumnLabelBurrowVer = "_burrowversion"
+	SQLColumnLabelChainID   = "_chainid"
 
 	// context
 	SQLColumnLabelIndex       = "_index"
