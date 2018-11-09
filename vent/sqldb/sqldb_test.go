@@ -48,7 +48,7 @@ func TestSynchronizeDB(t *testing.T) {
 }
 
 func TestCleanDB(t *testing.T) {
-	t.Run("POSTGRES: successfully creates database tables and synchronizes db", func(t *testing.T) {
+	t.Run("POSTGRES: successfully creates tables, updates chainID and drops all tables", func(t *testing.T) {
 		goodJSON := test.GoodJSONConfFile(t)
 
 		byteValue := []byte(goodJSON)
@@ -63,12 +63,11 @@ func TestCleanDB(t *testing.T) {
 		err = db.SynchronizeDB(tableStructure.GetTables())
 		require.NoError(t, err)
 
-		err=db.CleanTables("NEW_ID","1.0")
+		err = db.CleanTables("NEW_ID", "Version 1.0")
 		require.NoError(t, err)
 	})
 
-
-	t.Run("SQLITE: successfully creates database tables and synchronizes db", func(t *testing.T) {
+	t.Run("SQLITE: successfully creates tables, updates chainID and drops all tables", func(t *testing.T) {
 		goodJSON := test.GoodJSONConfFile(t)
 
 		byteValue := []byte(goodJSON)
@@ -83,7 +82,7 @@ func TestCleanDB(t *testing.T) {
 		err = db.SynchronizeDB(tableStructure.GetTables())
 		require.NoError(t, err)
 
-		err=db.CleanTables("NEW_ID","1.0")
+		err = db.CleanTables("NEW_ID", "Version 1.0")
 		require.NoError(t, err)
 
 	})

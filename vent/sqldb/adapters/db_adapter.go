@@ -36,11 +36,10 @@ type DBAdapter interface {
 	UpsertQuery(table types.SQLTable, row types.EventDataRow) (types.UpsertDeleteQuery, interface{}, error)
 	// DeleteQuery builds a DELETE FROM event tables query based on PK
 	DeleteQuery(table types.SQLTable, row types.EventDataRow) (types.UpsertDeleteQuery, error)
-	// RestoreQuery builds a list o sql commands needed to restore the db to a point in time
+	// RestoreDBQuery builds a list of sql clauses needed to restore the db to a point in time
 	RestoreDBQuery() string
-	// Return necesary queries for cleaning the database
-	CleanDBQueries() (string,string,string,string,string,string)
-	// CleanDBQueries returns DROP TABLE command
+	// CleanDBQueries returns necessary queries to clean the database
+	CleanDBQueries() types.SQLCleanDBQuery
+	// DropTableQuery builds a DROP TABLE query to delete a table
 	DropTableQuery(tableName string) string
-
 }

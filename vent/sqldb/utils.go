@@ -211,7 +211,6 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 		Columns: chainCol,
 	}
 
-
 	return tables
 }
 

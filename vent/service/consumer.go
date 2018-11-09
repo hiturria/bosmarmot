@@ -58,15 +58,12 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 	}
 	defer c.GRPCConnection.Close()
 
-	// get the chain ID to see if it's the same chain as the one stored in the db or a new one
+	// get the chain ID to compare with the one stored in the db
 	qCli := rpcquery.NewQueryClient(c.GRPCConnection)
 	chainStatus, err := qCli.Status(context.Background(), &rpcquery.StatusParam{})
 	if err != nil {
 		return errors.Wrapf(err, "Error getting chain status")
 	}
-	// data to query stored chain
-	fmt.Println(chainStatus.ChainID)
-	fmt.Println(chainStatus.BurrowVersion)
 
 	// obtain tables structures, event & abi specifications
 	tables := parser.GetTables()
@@ -79,14 +76,13 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 
 	c.Log.Info("msg", "Connecting to SQL database")
 
-	//TODO CHAINID
-	connection := types.SqlConnection{
+	connection := types.SQLConnection{
 		DBAdapter:     c.Config.DBAdapter,
 		DBURL:         c.Config.DBURL,
 		DBSchema:      c.Config.DBSchema,
-		ChainID:       "00000",
-		BurrowVersion: "0000",
 		Log:           c.Log,
+		ChainID:       chainStatus.ChainID,
+		BurrowVersion: chainStatus.BurrowVersion,
 	}
 
 	c.DB, err = sqldb.NewSQLDB(connection)

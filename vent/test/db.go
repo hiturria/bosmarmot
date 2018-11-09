@@ -26,14 +26,13 @@ func NewTestDB(t *testing.T, dbAdapter string) (*sqldb.SQLDB, func()) {
 
 	cfg := config.DefaultFlags()
 
-	connection:=types.SqlConnection{
-		DBAdapter: cfg.DBAdapter,
-		DBURL:cfg.DBURL,
-		ChainID:cfg.ChainID,
-		BurrowVersion: cfg.BurrowVersion,
-		Log:logger.NewLogger("debug"),
+	connection := types.SQLConnection{
+		DBAdapter:     cfg.DBAdapter,
+		DBURL:         cfg.DBURL,
+		Log:           logger.NewLogger("debug"),
+		ChainID:       "ID 0123",
+		BurrowVersion: "Version 0.0",
 	}
-
 
 	switch dbAdapter {
 	case types.PostgresDB:
@@ -47,8 +46,6 @@ func NewTestDB(t *testing.T, dbAdapter string) (*sqldb.SQLDB, func()) {
 		t.Fatal("invalid database adapter")
 	}
 
-
-
 	db, err := sqldb.NewSQLDB(connection)
 	if err != nil {
 		t.Fatal(err.Error())
@@ -57,11 +54,11 @@ func NewTestDB(t *testing.T, dbAdapter string) (*sqldb.SQLDB, func()) {
 	return db, func() {
 		if dbAdapter == types.SQLiteDB {
 			db.Close()
-			os.Remove(connection.DBURL )
-			os.Remove(connection.DBURL +"-shm")
-			os.Remove(connection.DBURL +"-wal")
+			os.Remove(connection.DBURL)
+			os.Remove(connection.DBURL + "-shm")
+			os.Remove(connection.DBURL + "-wal")
 		} else {
-			destroySchema(db, cfg.DBSchema)
+			destroySchema(db, connection.DBSchema)
 			db.Close()
 		}
 	}

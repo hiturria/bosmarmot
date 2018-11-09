@@ -195,10 +195,10 @@ func (adapter *PostgresAdapter) TableDefinitionQuery() string {
 			%s;`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType,   // select
+		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType, // select
 		types.SQLColumnLabelColumnLength, types.SQLColumnLabelPrimaryKey, // select
-		adapter.Schema, types.SQLDictionaryTableName,                     // from
-		types.SQLColumnLabelTableName,                                    // where
+		adapter.Schema, types.SQLDictionaryTableName, // from
+		types.SQLColumnLabelTableName,   // where
 		types.SQLColumnLabelColumnOrder) // order by
 
 }
@@ -243,7 +243,7 @@ func (adapter *PostgresAdapter) SelectLogQuery() string {
 
 	return fmt.Sprintf(query,
 		types.SQLColumnLabelTableName, types.SQLColumnLabelEventName, // select
-		adapter.Schema, types.SQLLogTableName,                        // from
+		adapter.Schema, types.SQLLogTableName, // from
 		types.SQLColumnLabelHeight) // where
 }
 
@@ -413,9 +413,9 @@ func (adapter *PostgresAdapter) RestoreDBQuery() string {
 		types.SQLColumnLabelId)
 }
 
-func (adapter *PostgresAdapter) CleanDBQueries() (string, string, string, string, string, string) {
+func (adapter *PostgresAdapter) CleanDBQueries() types.SQLCleanDBQuery {
 
-	//Chain info
+	// Chain info
 	selectChainIDQry := fmt.Sprintf(`
 		SELECT 
 		COUNT(*) REGISTERS,
@@ -434,7 +434,7 @@ func (adapter *PostgresAdapter) CleanDBQueries() (string, string, string, string
 		adapter.Schema, types.SQLChainInfoTableName,
 		types.SQLColumnLabelChainID, types.SQLColumnLabelBurrowVer)
 
-	//Dictionary
+	// Dictionary
 	selectDictionaryQry := fmt.Sprintf(`
 		SELECT DISTINCT %s 
 		FROM %s.%s 
@@ -445,7 +445,6 @@ func (adapter *PostgresAdapter) CleanDBQueries() (string, string, string, string
 		types.SQLColumnLabelTableName,
 		types.SQLLogTableName, types.SQLDictionaryTableName, types.SQLChainInfoTableName)
 
-
 	deleteDictionaryQry := fmt.Sprintf(`
 		DELETE FROM %s.%s 
 		WHERE %s 
@@ -454,14 +453,19 @@ func (adapter *PostgresAdapter) CleanDBQueries() (string, string, string, string
 		types.SQLColumnLabelTableName,
 		types.SQLLogTableName, types.SQLDictionaryTableName, types.SQLChainInfoTableName)
 
-	//log
+	// log
 	deleteLogQry := fmt.Sprintf(`
 		DELETE FROM %s.%s;`,
 		adapter.Schema, types.SQLLogTableName)
 
-	return selectChainIDQry, deleteChainIDQry, insertChainIDQry,
-		selectDictionaryQry, deleteDictionaryQry,
-		deleteLogQry
+	return types.SQLCleanDBQuery{
+		SelectChainIDQry:    selectChainIDQry,
+		DeleteChainIDQry:    deleteChainIDQry,
+		InsertChainIDQry:    insertChainIDQry,
+		SelectDictionaryQry: selectDictionaryQry,
+		DeleteDictionaryQry: deleteDictionaryQry,
+		DeleteLogQry:        deleteLogQry,
+	}
 }
 
 func (adapter *PostgresAdapter) DropTableQuery(tableName string) string {
