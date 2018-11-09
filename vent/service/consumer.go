@@ -79,7 +79,17 @@ func (c *Consumer) Run(parser *sqlsol.Parser, abiSpec *abi.AbiSpec, stream bool)
 
 	c.Log.Info("msg", "Connecting to SQL database")
 
-	c.DB, err = sqldb.NewSQLDB(c.Config.DBAdapter, c.Config.DBURL, c.Config.DBSchema, c.Log)
+	//TODO CHAINID
+	connection := types.SqlConnection{
+		DBAdapter:     c.Config.DBAdapter,
+		DBURL:         c.Config.DBURL,
+		DBSchema:      c.Config.DBSchema,
+		ChainID:       "00000",
+		BurrowVersion: "0000",
+		Log:           c.Log,
+	}
+
+	c.DB, err = sqldb.NewSQLDB(connection)
 	if err != nil {
 		return errors.Wrap(err, "Error connecting to SQL")
 	}

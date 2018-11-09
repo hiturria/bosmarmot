@@ -47,6 +47,48 @@ func TestSynchronizeDB(t *testing.T) {
 	})
 }
 
+func TestCleanDB(t *testing.T) {
+	t.Run("POSTGRES: successfully creates database tables and synchronizes db", func(t *testing.T) {
+		goodJSON := test.GoodJSONConfFile(t)
+
+		byteValue := []byte(goodJSON)
+		tableStructure, _ := sqlsol.NewParserFromBytes(byteValue)
+
+		db, cleanUpDB := test.NewTestDB(t, types.PostgresDB)
+		defer cleanUpDB()
+
+		err := db.Ping()
+		require.NoError(t, err)
+
+		err = db.SynchronizeDB(tableStructure.GetTables())
+		require.NoError(t, err)
+
+		err=db.CleanTables("NEW_ID","1.0")
+		require.NoError(t, err)
+	})
+
+
+	t.Run("SQLITE: successfully creates database tables and synchronizes db", func(t *testing.T) {
+		goodJSON := test.GoodJSONConfFile(t)
+
+		byteValue := []byte(goodJSON)
+		tableStructure, _ := sqlsol.NewParserFromBytes(byteValue)
+
+		db, closeDB := test.NewTestDB(t, types.SQLiteDB)
+		defer closeDB()
+
+		err := db.Ping()
+		require.NoError(t, err)
+
+		err = db.SynchronizeDB(tableStructure.GetTables())
+		require.NoError(t, err)
+
+		err=db.CleanTables("NEW_ID","1.0")
+		require.NoError(t, err)
+
+	})
+}
+
 func TestSetBlock(t *testing.T) {
 	t.Run("POSTGRES: successfully inserts a block", func(t *testing.T) {
 		db, closeDB := test.NewTestDB(t, types.PostgresDB)

@@ -193,20 +193,24 @@ func (db *SQLDB) getSysTablesDefinition() types.EventTables {
 	}
 
 	// add tables
+	//log
 	tables[types.SQLLogTableName] = types.SQLTable{
 		Name:    types.SQLLogTableName,
 		Columns: logCol,
 	}
 
+	//dictionary
+	tables[types.SQLDictionaryTableName] = types.SQLTable{
+		Name:    types.SQLDictionaryTableName,
+		Columns: dicCol,
+	}
+
+	//chain info
 	tables[types.SQLChainInfoTableName] = types.SQLTable{
 		Name:    types.SQLChainInfoTableName,
 		Columns: chainCol,
 	}
 
-	tables[types.SQLDictionaryTableName] = types.SQLTable{
-		Name:    types.SQLDictionaryTableName,
-		Columns: dicCol,
-	}
 
 	return tables
 }

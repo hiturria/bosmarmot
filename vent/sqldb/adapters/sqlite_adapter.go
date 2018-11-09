@@ -139,12 +139,12 @@ func (adapter *SQLiteAdapter) LastBlockIDQuery() string {
 			FROM ll LEFT OUTER JOIN %s log ON (ll.%s = log.%s);`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnLabelId,                         // max
-		types.SQLColumnLabelId,                         // as
-		types.SQLLogTableName,                          // from
-		types.SQLColumnLabelHeight,                     // coalesce
-		types.SQLColumnLabelHeight,                     // as
-		types.SQLLogTableName,                          // from
+		types.SQLColumnLabelId,     // max
+		types.SQLColumnLabelId,     // as
+		types.SQLLogTableName,      // from
+		types.SQLColumnLabelHeight, // coalesce
+		types.SQLColumnLabelHeight, // as
+		types.SQLLogTableName,      // from
 		types.SQLColumnLabelId, types.SQLColumnLabelId) // on
 }
 
@@ -153,7 +153,7 @@ func (adapter *SQLiteAdapter) FindTableQuery() string {
 	query := "SELECT COUNT(*) found FROM %s WHERE %s = $1;"
 
 	return fmt.Sprintf(query,
-		types.SQLDictionaryTableName,  // from
+		types.SQLDictionaryTableName, // from
 		types.SQLColumnLabelTableName) // where
 }
 
@@ -170,10 +170,10 @@ func (adapter *SQLiteAdapter) TableDefinitionQuery() string {
 			%s;`
 
 	return fmt.Sprintf(query,
-		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType, // select
+		types.SQLColumnLabelColumnName, types.SQLColumnLabelColumnType,   // select
 		types.SQLColumnLabelColumnLength, types.SQLColumnLabelPrimaryKey, // select
-		types.SQLDictionaryTableName,    // from
-		types.SQLColumnLabelTableName,   // where
+		types.SQLDictionaryTableName,                                     // from
+		types.SQLColumnLabelTableName,                                    // where
 		types.SQLColumnLabelColumnOrder) // order by
 }
 
@@ -216,7 +216,7 @@ func (adapter *SQLiteAdapter) SelectLogQuery() string {
 
 	return fmt.Sprintf(query,
 		types.SQLColumnLabelTableName, types.SQLColumnLabelEventName, // select
-		types.SQLLogTableName,      // from
+		types.SQLLogTableName,                                        // from
 		types.SQLColumnLabelHeight) // where
 }
 
@@ -400,4 +400,60 @@ func (adapter *SQLiteAdapter) RestoreDBQuery() string {
 
 	return query
 
+}
+
+func (adapter *SQLiteAdapter) CleanDBQueries() (string, string, string, string, string, string) {
+
+	//Chain info
+	selectChainIDQry := fmt.Sprintf(`
+		SELECT 
+		COUNT(*) REGISTERS,
+		COALESCE(MAX(%s),'') CHAINID,
+		COALESCE(MAX(%s),'') BVERSION 
+		FROM %s;`,
+		types.SQLColumnLabelChainID, types.SQLColumnLabelBurrowVer,
+		types.SQLChainInfoTableName)
+
+	deleteChainIDQry := fmt.Sprintf(`
+		DELETE FROM %s;`,
+		types.SQLChainInfoTableName)
+
+	insertChainIDQry := fmt.Sprintf(`
+		INSERT INTO %s (%s,%s) VALUES($1,$2)`,
+		 types.SQLChainInfoTableName,
+		types.SQLColumnLabelChainID, types.SQLColumnLabelBurrowVer)
+
+	//Dictionary
+	selectDictionaryQry := fmt.Sprintf(`
+		SELECT DISTINCT %s 
+		FROM %s 
+ 		WHERE %s
+		NOT IN ('%s','%s','%s');`,
+		types.SQLColumnLabelTableName,
+		types.SQLDictionaryTableName,
+		types.SQLColumnLabelTableName,
+		types.SQLLogTableName, types.SQLDictionaryTableName, types.SQLChainInfoTableName)
+
+
+	deleteDictionaryQry := fmt.Sprintf(`
+		DELETE FROM %s 
+		WHERE %s 
+		NOT IN ('%s','%s','%s');`,
+		types.SQLDictionaryTableName,
+		types.SQLColumnLabelTableName,
+		types.SQLLogTableName, types.SQLDictionaryTableName, types.SQLChainInfoTableName)
+
+	//log
+	deleteLogQry := fmt.Sprintf(`
+		DELETE FROM %s;`,
+		types.SQLLogTableName)
+
+	return selectChainIDQry, deleteChainIDQry, insertChainIDQry,
+		selectDictionaryQry, deleteDictionaryQry,
+		deleteLogQry
+}
+
+func (adapter *SQLiteAdapter) DropTableQuery(tableName string) string {
+	//drop tables
+	return fmt.Sprintf(`DROP TABLE %s;`, tableName)
 }

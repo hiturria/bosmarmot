@@ -22,22 +22,24 @@ type SQLDB struct {
 
 // NewSQLDB delegates work to a specific database adapter implementation,
 // opens database connection and create log tables
-func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, error) {
+func NewSQLDB(connection types.SqlConnection) (*SQLDB, error) {
 	db := &SQLDB{
-		Schema: schema,
-		Log:    log,
+		Schema: connection.DBSchema,
+		Log:    connection.Log,
 	}
 
 	var url string
 
-	switch dbAdapter {
+	switch connection.DBAdapter {
 	case types.PostgresDB:
-		db.DBAdapter = adapters.NewPostgresAdapter(safe(schema), log)
-		url = dbURL
+		db.DBAdapter = adapters.NewPostgresAdapter(safe(connection.DBSchema), connection.Log)
+		url = connection.DBURL
+
 	case types.SQLiteDB:
-		db.DBAdapter = adapters.NewSQLiteAdapter(log)
+		db.DBAdapter = adapters.NewSQLiteAdapter(connection.Log)
 		// "?_journal_mode=WAL" parameter is necessary to prevent database lock
-		url = dbURL + "?_journal_mode=WAL"
+		url = connection.DBURL + "?_journal_mode=WAL"
+
 	default:
 		return nil, errors.New("invalid database adapter")
 	}
@@ -83,7 +85,140 @@ func NewSQLDB(dbAdapter, dbURL, schema string, log *logger.Logger) (*SQLDB, erro
 		}
 	}
 
+	if err = db.CleanTables(connection.ChainID, connection.BurrowVersion); err != nil {
+		db.Log.Info("msg", "Error cleaning tables", "err", err)
+		return nil, err
+	}
 	return db, nil
+}
+
+//cleanTables, clean database as necesary
+func (db *SQLDB) CleanTables(chainID string, burrowVersion string) error {
+
+	if chainID==""{
+		return fmt.Errorf("error CHAIN ID cannot by empty")
+	}
+
+	selectChainIDQry, deleteChainIDQry, insertChainIDQry,
+	selectDictionaryQry, deleteDictionaryQry,
+	deleteLogQry := db.DBAdapter.CleanDBQueries()
+
+	var savedChainID, savedBurrowVersion, query string
+	savedRegisters := 0
+
+	//Read chainID
+	query = clean(selectChainIDQry)
+	if err := db.DB.QueryRow(query).Scan(&savedRegisters, &savedChainID, &savedBurrowVersion); err != nil {
+		db.Log.Info("msg", "Error selecting CHAIN ID", "err", err, "query", query)
+		return err
+	}
+
+	switch {
+	//Must be empty or one register
+	case savedRegisters != 0 && savedRegisters != 1:
+		return fmt.Errorf("error multiple CHAIN ID returned")
+
+	//Is first database access
+	case savedRegisters == 0:
+		//Save values and exit
+		query = clean(insertChainIDQry)
+		if _, err := db.DB.Exec(query, chainID, burrowVersion); err != nil {
+			db.Log.Info("msg", "Error inserting CHAIN ID", "err", err, "query", query)
+			return err
+		}
+		return nil
+
+	//If data equals previous version exit
+	case savedChainID == chainID:
+		return nil
+
+		//Clean database
+	default:
+		var tx *sql.Tx
+		var err error
+		var tableName string
+		tables := make([]string, 0)
+
+		// Begin tx
+		if tx, err = db.DB.Begin(); err != nil {
+			db.Log.Info("msg", "Error beginning transaction", "err", err)
+			return err
+		}
+		defer tx.Rollback()
+
+		//Delete chainID
+		query := clean(deleteChainIDQry)
+		if _, err = tx.Exec(query); err != nil {
+			db.Log.Info("msg", "Error deleting CHAIN ID", "err", err, "query", query)
+			return err
+		}
+
+		//Insert chainID
+		query = clean(insertChainIDQry)
+		if _, err := tx.Exec(query, chainID, burrowVersion); err != nil {
+			db.Log.Info("msg", "Error inserting CHAIN ID", "err", err, "query", query)
+			return err
+		}
+
+		//Load Tables
+		//Open rows
+		query = clean(selectDictionaryQry)
+		rows, err := tx.Query(query)
+		if err != nil {
+			db.Log.Info("msg", "error querying dictionary", "err", err, "query", query)
+			return err
+		}
+		defer rows.Close()
+
+		//For each row returned
+		for rows.Next() {
+
+			//Exit on error
+			if err = rows.Scan(&tableName); err != nil {
+				db.Log.Info("msg", "error scanning table structure", "err", err)
+				return err
+			}
+			//Exit on error
+			if err = rows.Err(); err != nil {
+				db.Log.Info("msg", "error scanning table structure", "err", err)
+				return err
+			}
+			tables = append(tables, tableName)
+		}
+
+		//Delete Dictionary
+		query = clean(deleteDictionaryQry)
+		if _, err = tx.Exec(query); err != nil {
+			db.Log.Info("msg", "Error deleting dictionary", "err", err, "query", query)
+			return err
+		}
+
+		//Delete Log
+		query = clean(deleteLogQry)
+		if _, err = tx.Exec(query); err != nil {
+			db.Log.Info("msg", "Error deleting log", "err", err, "query", query)
+			return err
+		}
+
+		//Commit
+		if err = tx.Commit(); err != nil {
+			db.Log.Info("msg", "Error commiting transaction", "err", err)
+			return err
+		}
+
+		//---------------------------------------
+		//-           PANIC AHEAD               -
+		//---------------------------------------
+		for _, tableName = range tables {
+			query = clean(db.DBAdapter.DropTableQuery(tableName))
+			if _, err = db.DB.Exec(query); err != nil {
+				db.Log.Info("msg", "error droping tables", "err", err, "value", tableName, "query", query)
+				return err
+				//PANIC?
+			}
+		}
+		return nil
+	}
 }
 
 // Close database connection
@@ -173,7 +308,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 loop:
-	// for each table in the block
+// for each table in the block
 	for eventName, table := range eventTables {
 
 		safeTable = safe(table.Name)
