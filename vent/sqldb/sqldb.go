@@ -117,7 +117,7 @@ func (db *SQLDB) CleanTables(chainID, burrowVersion string) error {
 	case savedRows != 0 && savedRows != 1:
 		return fmt.Errorf("error multiple CHAIN ID returned")
 
-		// First database access
+	// First database access
 	case savedRows == 0:
 		// Save new values and exit
 		query = clean(cleanQueries.InsertChainIDQry)
@@ -127,11 +127,11 @@ func (db *SQLDB) CleanTables(chainID, burrowVersion string) error {
 		}
 		return nil
 
-		// if data equals previous version exit
+	// if data equals previous version exit
 	case savedChainID == chainID:
 		return nil
 
-		// clean database
+	// clean database
 	default:
 		var tx *sql.Tx
 		var err error
@@ -206,9 +206,8 @@ func (db *SQLDB) CleanTables(chainID, burrowVersion string) error {
 		for _, tableName = range tables {
 			query = clean(db.DBAdapter.DropTableQuery(tableName))
 			if _, err = db.DB.Exec(query); err != nil {
-				if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeUndefinedTable) {
-					//Table Not Found -> Continue
-				} else {
+				// if error == table does not exists, continue
+				if !db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeUndefinedTable) {
 					db.Log.Info("msg", "error dropping tables", "err", err, "value", tableName, "query", query)
 					return err
 				}
@@ -305,7 +304,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 loop:
-// for each table in the block
+	// for each table in the block
 	for eventName, table := range eventTables {
 
 		safeTable = safe(table.Name)
@@ -470,8 +469,8 @@ func (db *SQLDB) GetBlock(block string) (types.EventData, error) {
 		var dataRows []types.EventDataRow
 
 		for rows.Next() {
+
 			row := make(map[string]interface{})
-			//var row types.EventDataRow
 
 			if err = rows.Scan(pointers...); err != nil {
 				db.Log.Info("msg", "Error scanning data", "err", err)
@@ -509,13 +508,13 @@ func (db *SQLDB) RestoreDB(time time.Time, prefix string) error {
 		return fmt.Errorf("error prefix mus not be empty")
 	}
 
-	//Get Restore DB query
+	// Get Restore DB query
 	query := db.DBAdapter.RestoreDBQuery()
 	strTime := time.Format(yymmddhhmmss)
 
 	db.Log.Info("msg", "RESTORING DB..................................")
 
-	//Open rows
+	// Open rows
 	db.Log.Info("msg", "open log", "query", query)
 	rows, err := db.DB.Query(query, strTime)
 	if err != nil {
@@ -524,18 +523,16 @@ func (db *SQLDB) RestoreDB(time time.Time, prefix string) error {
 	}
 	defer rows.Close()
 
-	//For each row returned
+	// For each row returned
 	for rows.Next() {
 		var tableName, sqlSmt, sqlValues string
 		var action types.DBAction
 
-		//Exit on error
 		if err = rows.Scan(&tableName, &action, &sqlSmt, &sqlValues); err != nil {
 			db.Log.Info("msg", "error scanning table structure", "err", err)
 			return err
 		}
 
-		//Exit on error
 		if err = rows.Err(); err != nil {
 			db.Log.Info("msg", "error scanning table structure", "err", err)
 			return err
@@ -545,15 +542,15 @@ func (db *SQLDB) RestoreDB(time time.Time, prefix string) error {
 
 		switch action {
 		case types.ActionUpsert, types.ActionDelete:
-			//UnMarshal JSON
+			// get row values
 			if pointers, err = db.getValuesFromJSON(sqlValues); err != nil {
 				db.Log.Info("msg", "error unmarshaling json", "err", err, "value", sqlValues)
 				return err
 			}
 
-			//Prepare Upsert/delete
+			// Prepare Upsert/delete
 			query = strings.Replace(sqlSmt, tableName, restoreTable, -1)
-			//Execute SQL
+
 			db.Log.Info("msg", "SQL COMMAND", "sql", query)
 			if _, err = db.DB.Exec(query, pointers...); err != nil {
 				db.Log.Info("msg", "Error executing upsert/delete ", "err", err, "value", sqlSmt, "data", sqlValues)
@@ -561,16 +558,16 @@ func (db *SQLDB) RestoreDB(time time.Time, prefix string) error {
 			}
 
 		case types.ActionAlterTable, types.ActionCreateTable:
-			//Prepare Alter/Create Table
+			// Prepare Alter/Create Table
 			query = strings.Replace(sqlSmt, tableName, restoreTable, -1)
-			//Execute SQL
+
 			db.Log.Info("msg", "SQL COMMAND", "sql", query)
 			if _, err = db.DB.Exec(query); err != nil {
 				db.Log.Info("msg", "Error executing alter/create table command ", "err", err, "value", sqlSmt)
 				return err
 			}
 		default:
-			//Invalid Action
+			// Invalid Action
 			db.Log.Info("msg", "invalid action", "value", action)
 			return fmt.Errorf("invalid row action %s", action)
 		}
