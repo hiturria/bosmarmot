@@ -117,7 +117,7 @@ func (db *SQLDB) CleanTables(chainID, burrowVersion string) error {
 	case savedRows != 0 && savedRows != 1:
 		return fmt.Errorf("error multiple CHAIN ID returned")
 
-	// First database access
+		// First database access
 	case savedRows == 0:
 		// Save new values and exit
 		query = clean(cleanQueries.InsertChainIDQry)
@@ -127,11 +127,11 @@ func (db *SQLDB) CleanTables(chainID, burrowVersion string) error {
 		}
 		return nil
 
-	// if data equals previous version exit
+		// if data equals previous version exit
 	case savedChainID == chainID:
 		return nil
 
-	// clean database
+		// clean database
 	default:
 		var tx *sql.Tx
 		var err error
@@ -202,12 +202,16 @@ func (db *SQLDB) CleanTables(chainID, burrowVersion string) error {
 			return err
 		}
 
-		// Delete event, block & tx tables
+		// Drop database tables
 		for _, tableName = range tables {
 			query = clean(db.DBAdapter.DropTableQuery(tableName))
 			if _, err = db.DB.Exec(query); err != nil {
-				db.Log.Info("msg", "error dropping tables", "err", err, "value", tableName, "query", query)
-				return err
+				if db.DBAdapter.ErrorEquals(err, types.SQLErrorTypeUndefinedTable) {
+					//Table Not Found -> Continue
+				} else {
+					db.Log.Info("msg", "error dropping tables", "err", err, "value", tableName, "query", query)
+					return err
+				}
 			}
 		}
 		return nil
@@ -301,7 +305,7 @@ func (db *SQLDB) SetBlock(eventTables types.EventTables, eventData types.EventDa
 	}
 
 loop:
-	// for each table in the block
+// for each table in the block
 	for eventName, table := range eventTables {
 
 		safeTable = safe(table.Name)
